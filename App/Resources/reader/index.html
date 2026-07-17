@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' mdeasy-asset: data: blob:; font-src 'self' data:; connect-src 'none'; frame-src 'none'; base-uri 'none';"
+    />
+    <title>mdeasy</title>
+    <link rel="stylesheet" href="styles/themes.css" />
+    <link rel="stylesheet" href="styles/reader.css" />
+    <link rel="stylesheet" href="styles/hljs.css" />
+  </head>
+  <body>
+    <div id="app">
+      <aside id="outline" class="outline" aria-label="Outline"></aside>
+      <main id="main">
+        <header id="toolbar" class="toolbar">
+          <button type="button" id="btn-outline" title="Toggle outline (⌘B)">☰</button>
+          <span id="doc-title" class="doc-title">mdeasy</span>
+          <span class="spacer"></span>
+          <select id="theme-select" title="Theme" aria-label="Theme">
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="sepia">Sepia</option>
+            <option value="green">Green</option>
+          </select>
+        </header>
+        <article id="content" class="markdown-body empty">
+          <div class="empty-state">
+            <h1>mdeasy</h1>
+            <p>Open a Markdown file to start reading.</p>
+            <p class="hint">⌘O open · drag & drop · double-click .md</p>
+          </div>
+        </article>
+      </main>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>

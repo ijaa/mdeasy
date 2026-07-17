@@ -1,0 +1,16 @@
+node_modules/
+reader/node_modules/
+reader/dist/
+build/
+DerivedData/
+.DS_Store
+*.xcuserstate
+xcuserdata/
+.idea/
+.vscode/
+*.log
+.env
+.env.*
+
+# Keep App/Resources/reader built assets in git so Xcode/CI always have a fallback bundle.
+# Prefer regenerating via: ./scripts/build-reader.sh && ./scripts/sync-reader-to-app.sh

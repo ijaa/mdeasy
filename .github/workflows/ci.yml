@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  reader:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: reader/package-lock.json
+      - name: Install & build reader
+        working-directory: reader
+        run: |
+          npm ci
+          npm test
+          npm run build
+      - name: Upload reader dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: reader-dist
+          path: reader/dist
+
+  mac-app:
+    needs: reader
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: reader/package-lock.json
+
+      - name: Build reader & sync into App
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/build-reader.sh
+          ./scripts/sync-reader-to-app.sh
+
+      - name: Show Xcode
+        run: xcodebuild -version
+
+      - name: Build macOS app (unsigned)
+        run: ./scripts/ci-xcodebuild.sh
+
+      - name: Upload mdeasy.app
+        uses: actions/upload-artifact@v4
+        with:
+          name: mdeasy-app
+          path: build/mdeasy.app
