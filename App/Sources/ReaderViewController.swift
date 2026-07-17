@@ -386,6 +386,12 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
                 "name": Preferences.shared.theme
             ])
             pushLatestDocument(reason: "js-ready")
+        case "doc-shown":
+            // Proof that the web reader actually rendered content (not just native open).
+            let path = body["path"] as? String ?? ""
+            let chars = body["chars"] as? Int ?? (body["chars"] as? Double).map { Int($0) } ?? -1
+            NSLog("mdeasy: DOC_SHOWN path=%@ chars=%d", path, chars)
+            Self.writeSmokeStamp(path: path, chars: chars)
         case "pong":
             NSLog("mdeasy: pong %@", String(describing: body["version"]))
         case "export-html":
@@ -408,6 +414,18 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
     }
 
     private func windowVersionPlaceholder() -> String { "?" }
+
+    /// Writes /tmp/mdeasy-last-shown.json so smoke tests can prove content rendered.
+    private static func writeSmokeStamp(path: String, chars: Int) {
+        let payload: [String: Any] = [
+            "path": path,
+            "chars": chars,
+            "ts": Date().timeIntervalSince1970
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted]) else { return }
+        let url = URL(fileURLWithPath: "/tmp/mdeasy-last-shown.json")
+        try? data.write(to: url, options: .atomic)
+    }
 
     private func handleExport(_ body: [String: Any]) {
         guard let html = body["html"] as? String else { return }

@@ -149,6 +149,10 @@ async function showDoc({ path, text }) {
   if (!content) return;
   content.classList.remove("empty");
   content.innerHTML = html;
+  // Machine-readable marker for automated smoke tests (and debugging).
+  content.setAttribute("data-mdeasy-path", path || "");
+  content.setAttribute("data-mdeasy-rendered", "1");
+  content.setAttribute("data-mdeasy-chars", String((text || "").length));
   const outline = extractOutlineFromHtml(html);
   renderOutline(outline);
   content.scrollTop = 0;
@@ -157,6 +161,13 @@ async function showDoc({ path, text }) {
   if (documentHasMermaid(state.text) || content.querySelector(".mermaid")) {
     await renderMermaidBlocks();
   }
+
+  post({
+    type: "doc-shown",
+    path: path || "",
+    chars: (text || "").length,
+    hasMermaid: documentHasMermaid(text || ""),
+  });
 }
 
 function showEmpty() {
