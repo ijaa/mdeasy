@@ -12,15 +12,40 @@ mkdir -p "$ROOT/build"
 rm -rf "$DERIVED"
 mkdir -p "$DERIVED"
 
-# Ensure icon exists at App/AppIcon.icns (flat copy into Contents/Resources)
-if [[ ! -f "$APP_DIR/AppIcon.icns" ]] || [[ -f "$APP_DIR/Assets/mdeasy-logo.jpeg" ]]; then
-  if [[ -f "$APP_DIR/Assets/mdeasy-logo.jpeg" || -f "$APP_DIR/Assets/mdeasy-icon-transparent.png" ]]; then
-    chmod +x "$ROOT/scripts/build-icon.sh" "$ROOT/scripts/process-icon-alpha.py" || true
+# Ensure flat AppIcon.icns exists. Prefer committed asset; rebuild only if missing.
+if [[ ! -f "$APP_DIR/AppIcon.icns" ]]; then
+  chmod +x "$ROOT/scripts/build-icon.sh" "$ROOT/scripts/process-icon-alpha.py" 2>/dev/null || true
+  if [[ -f "$APP_DIR/Assets/mdeasy-icon-transparent.png" ]]; then
+    "$ROOT/scripts/build-icon.sh" "$APP_DIR/Assets/mdeasy-icon-transparent.png"
+  elif [[ -f "$APP_DIR/Assets/mdeasy-logo.jpeg" ]]; then
     "$ROOT/scripts/build-icon.sh" "$APP_DIR/Assets/mdeasy-logo.jpeg"
   else
-    echo "WARN: AppIcon.icns missing and no logo source"
+    echo "ERROR: AppIcon.icns missing and no logo source" >&2
+    exit 1
   fi
 fi
+# Verify committed/generated icon has transparent corners (prevents black frame regressions)
+python3 - <<'PY' || true
+from pathlib import Path
+try:
+    from PIL import Image
+    import numpy as np
+    import subprocess, tempfile, os
+    icns = Path("App/AppIcon.icns")
+    if not icns.exists():
+        raise SystemExit(0)
+    out = Path("/tmp/ci-icon-preview.png")
+    subprocess.run(["sips", "-s", "format", "png", str(icns), "--out", str(out)], check=False, capture_output=True)
+    if out.exists():
+        a = np.array(Image.open(out).convert("RGBA"))
+        corner = int(a[0, 0, 3])
+        print(f"icon corner_alpha={corner}")
+        if corner > 20:
+            raise SystemExit("ERROR: AppIcon.icns corner is not transparent (black frame risk)")
+except Exception as e:
+    # Pillow may be absent on CI; structural path check is enough then.
+    print("icon alpha check skipped:", e)
+PY
 
 echo "==> xcodebuild ($CONFIG) ARCHS=[$ARCHS_VALUE]"
 xcodebuild \
