@@ -146,7 +146,7 @@ reader/              # 前端源码（markdown-it + mermaid + esbuild IIFE）
 scripts/             # 构建 / 同步 / 图标 / dmg / 冒烟
 fixtures/            # 样例 md
 .github/workflows/   # ci.yml + release.yml
-docs/技术方案.md
+docs/architecture.md
 ```
 
 ### 关键架构（与实现对齐）

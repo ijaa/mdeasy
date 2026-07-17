@@ -1,4 +1,6 @@
-# mdeasy 技术方案（实现对齐版 · v0.2.8）
+# mdeasy Architecture (implementation · v0.2.8)
+
+> 中文说明：本文件为技术架构文档（原「技术方案」）。
 
 > **产品**：本地优先的 Markdown **阅读器**（不是编辑器 / 笔记库）  
 > **对标**：[MDView](https://www.mdview.cn/)  
