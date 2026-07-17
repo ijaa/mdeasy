@@ -52,20 +52,23 @@ jobs:
       - name: Build macOS app (unsigned)
         run: ./scripts/ci-xcodebuild.sh
 
-      - name: Bundle sanity (no ESM)
+      - name: Bundle sanity (icon + universal + no ESM)
         run: |
-          chmod +x scripts/smoke-open.sh
-          # Only structural checks that don't need GUI session reliability
+          chmod +x scripts/*.sh
           APP=build/mdeasy.app
           INDEX=$(find "$APP/Contents/Resources" -name index.html | head -n1)
           APPJS=$(find "$APP/Contents/Resources" -name app.js | head -n1)
-          test -n "$INDEX" && test -n "$APPJS"
+          ICON=$(find "$APP/Contents/Resources" -name AppIcon.icns | head -n1)
+          BIN="$APP/Contents/MacOS/mdeasy"
+          test -n "$INDEX" && test -n "$APPJS" && test -n "$ICON" && test -x "$BIN"
           ! grep -q 'type="module"' "$INDEX"
           ! head -c 40 "$APPJS" | grep -q '^import'
-          echo "bundle OK: classic IIFE"
-          # quick strings probe for bridge
           grep -q '__mdeasy' "$APPJS"
-          du -sh "$APP" "$APPJS"
+          file "$BIN" | tee /tmp/arch.txt
+          grep -q 'x86_64' /tmp/arch.txt
+          grep -q 'arm64' /tmp/arch.txt
+          echo "bundle OK: classic IIFE + universal + icon"
+          du -sh "$APP" "$APPJS" "$ICON"
 
       - name: Upload mdeasy.app
         uses: actions/upload-artifact@v4

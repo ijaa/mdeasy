@@ -5,17 +5,32 @@ APP_DIR="$ROOT/App"
 DERIVED="${DERIVED_DATA_PATH:-$ROOT/build/DerivedData}"
 CONFIG="${CONFIGURATION:-Release}"
 
+# Universal binary: Intel + Apple Silicon
+ARCHS_VALUE="${ARCHS_VALUE:-arm64 x86_64}"
+
 mkdir -p "$ROOT/build"
 rm -rf "$DERIVED"
 mkdir -p "$DERIVED"
 
-echo "==> xcodebuild ($CONFIG)"
+# Ensure icon exists
+if [[ ! -f "$APP_DIR/Resources/AppIcon.icns" ]]; then
+  if [[ -f "$APP_DIR/Assets/mdeasy-logo.jpeg" ]]; then
+    chmod +x "$ROOT/scripts/build-icon.sh"
+    "$ROOT/scripts/build-icon.sh"
+  else
+    echo "WARN: AppIcon.icns missing and no logo source"
+  fi
+fi
+
+echo "==> xcodebuild ($CONFIG) ARCHS=[$ARCHS_VALUE]"
 xcodebuild \
   -project "$APP_DIR/mdeasy.xcodeproj" \
   -scheme mdeasy \
   -configuration "$CONFIG" \
   -derivedDataPath "$DERIVED" \
-  -destination 'platform=macOS' \
+  -destination 'generic/platform=macOS' \
+  ARCHS="$ARCHS_VALUE" \
+  ONLY_ACTIVE_ARCH=NO \
   CODE_SIGNING_ALLOWED=NO \
   CODE_SIGNING_REQUIRED=NO \
   CODE_SIGN_IDENTITY=- \
@@ -31,14 +46,47 @@ OUT_APP="$ROOT/build/mdeasy.app"
 rm -rf "$OUT_APP"
 cp -R "$APP_PATH" "$OUT_APP"
 
+BIN="$OUT_APP/Contents/MacOS/mdeasy"
+ICON_CANDIDATES=(
+  "$OUT_APP/Contents/Resources/AppIcon.icns"
+  "$OUT_APP/Contents/Resources/Resources/AppIcon.icns"
+)
+
 echo "==> size"
 du -sh "$OUT_APP"
-du -sh "$OUT_APP/Contents/MacOS/"* 2>/dev/null || true
+du -sh "$BIN" 2>/dev/null || true
 du -sh "$OUT_APP/Contents/Resources" 2>/dev/null || true
+
+echo "==> architectures"
+file "$BIN"
+if ! file "$BIN" | grep -q 'x86_64'; then
+  echo "ERROR: missing x86_64 slice" >&2
+  exit 1
+fi
+if ! file "$BIN" | grep -q 'arm64'; then
+  echo "ERROR: missing arm64 slice" >&2
+  exit 1
+fi
+echo "OK universal binary (arm64 + x86_64)"
+
+echo "==> icon"
+FOUND_ICON=""
+for p in "${ICON_CANDIDATES[@]}"; do
+  if [[ -f "$p" ]]; then
+    FOUND_ICON="$p"
+    break
+  fi
+done
+if [[ -z "$FOUND_ICON" ]]; then
+  echo "ERROR: AppIcon.icns not in app bundle" >&2
+  find "$OUT_APP/Contents/Resources" -type f | head -40 >&2
+  exit 1
+fi
+echo "OK icon: $FOUND_ICON ($(du -h "$FOUND_ICON" | awk '{print $1}'))"
 
 # Size gate for full pack (Mermaid included). Override with MAX_APP_KB.
 SIZE_KB=$(du -sk "$OUT_APP" | awk '{print $1}')
-MAX_KB=${MAX_APP_KB:-20480} # 20 MB — IIFE full pack includes mermaid
+MAX_KB=${MAX_APP_KB:-20480} # 20 MB
 if (( SIZE_KB > MAX_KB )); then
   echo "ERROR: app size ${SIZE_KB}KB exceeds gate ${MAX_KB}KB" >&2
   exit 1

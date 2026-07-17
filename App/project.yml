@@ -9,10 +9,12 @@ settings:
   base:
     PRODUCT_NAME: mdeasy
     PRODUCT_BUNDLE_IDENTIFIER: app.mdeasy.mdeasy
-    MARKETING_VERSION: 0.2.3
-    CURRENT_PROJECT_VERSION: 5
+    MARKETING_VERSION: 0.2.4
+    CURRENT_PROJECT_VERSION: 6
     SWIFT_VERSION: "5.0"
     MACOSX_DEPLOYMENT_TARGET: "12.0"
+    ARCHS: [arm64, x86_64]
+    ONLY_ACTIVE_ARCH: NO
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGNING_REQUIRED: "NO"
     CODE_SIGNING_ALLOWED: "NO"
@@ -34,9 +36,15 @@ targets:
         type: folder
         buildPhase: resources
     settings:
+      configs:
+        Debug:
+          ONLY_ACTIVE_ARCH: YES
+        Release:
+          ONLY_ACTIVE_ARCH: NO
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.mdeasy.mdeasy
         INFOPLIST_FILE: Info.plist
+        ARCHS: [arm64, x86_64]
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGNING_REQUIRED: "NO"
         CODE_SIGNING_ALLOWED: "NO"

@@ -6,17 +6,19 @@ Tiny **offline Markdown reader** for macOS — full pack with **Mermaid**.
 
 Inspired by [MDView](https://www.mdview.cn/).
 
-## Features (v0.2 full)
+## Features (v0.2.4 full)
 
 - Open / drag-drop / **double-click** `.md` (default handler)
 - GFM: tables, task lists, auto-links
-- **Mermaid** diagrams (bundled, offline, lazy-loaded)
+- **Mermaid** diagrams (bundled, offline)
 - Live reload when the file changes on disk
 - Outline (H1–H3)
 - Themes: Light / Dark / Sepia / Green
 - Local images (sandboxed to the markdown folder)
-- Export HTML (includes rendered Mermaid SVG when possible)
+- Export HTML
 - Fully offline — no telemetry
+- **Universal binary** (Apple Silicon arm64 + Intel x86_64)
+- Custom app icon
 
 ## Install (self-use, unsigned)
 
