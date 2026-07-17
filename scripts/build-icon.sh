@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Build AppIcon.icns from App/Assets/mdeasy-logo.jpeg (or $1)
+# Output MUST be App/AppIcon.icns (flat) so macOS finds Contents/Resources/AppIcon.icns
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="${1:-$ROOT/App/Assets/mdeasy-logo.jpeg}"
 ICONSET="$ROOT/App/Assets/AppIcon.iconset"
-ICNS="$ROOT/App/Resources/AppIcon.icns"
+ICNS="$ROOT/App/AppIcon.icns"
 MASTER="/tmp/mdeasy-icon-master-$$.png"
 
 if [[ ! -f "$SRC" ]]; then
@@ -12,7 +13,7 @@ if [[ ! -f "$SRC" ]]; then
   exit 1
 fi
 
-mkdir -p "$ROOT/App/Assets" "$ROOT/App/Resources"
+mkdir -p "$ROOT/App/Assets"
 sips -s format png "$SRC" --out "$MASTER" >/dev/null
 rm -rf "$ICONSET"
 mkdir -p "$ICONSET"

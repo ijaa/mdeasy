@@ -12,8 +12,8 @@ mkdir -p "$ROOT/build"
 rm -rf "$DERIVED"
 mkdir -p "$DERIVED"
 
-# Ensure icon exists
-if [[ ! -f "$APP_DIR/Resources/AppIcon.icns" ]]; then
+# Ensure icon exists at App/AppIcon.icns (flat copy into Contents/Resources)
+if [[ ! -f "$APP_DIR/AppIcon.icns" ]]; then
   if [[ -f "$APP_DIR/Assets/mdeasy-logo.jpeg" ]]; then
     chmod +x "$ROOT/scripts/build-icon.sh"
     "$ROOT/scripts/build-icon.sh"
@@ -47,10 +47,6 @@ rm -rf "$OUT_APP"
 cp -R "$APP_PATH" "$OUT_APP"
 
 BIN="$OUT_APP/Contents/MacOS/mdeasy"
-ICON_CANDIDATES=(
-  "$OUT_APP/Contents/Resources/AppIcon.icns"
-  "$OUT_APP/Contents/Resources/Resources/AppIcon.icns"
-)
 
 echo "==> size"
 du -sh "$OUT_APP"
@@ -70,19 +66,14 @@ fi
 echo "OK universal binary (arm64 + x86_64)"
 
 echo "==> icon"
-FOUND_ICON=""
-for p in "${ICON_CANDIDATES[@]}"; do
-  if [[ -f "$p" ]]; then
-    FOUND_ICON="$p"
-    break
-  fi
-done
-if [[ -z "$FOUND_ICON" ]]; then
-  echo "ERROR: AppIcon.icns not in app bundle" >&2
-  find "$OUT_APP/Contents/Resources" -type f | head -40 >&2
+# CFBundleIconFile looks in Contents/Resources/AppIcon.icns (NOT nested Resources/)
+if [[ ! -f "$OUT_APP/Contents/Resources/AppIcon.icns" ]]; then
+  echo "ERROR: AppIcon.icns not at Contents/Resources/AppIcon.icns" >&2
+  find "$OUT_APP/Contents/Resources" -type f -name '*.icns' >&2 || true
+  find "$OUT_APP/Contents/Resources" -maxdepth 3 -type d >&2 || true
   exit 1
 fi
-echo "OK icon: $FOUND_ICON ($(du -h "$FOUND_ICON" | awk '{print $1}'))"
+echo "OK icon: Contents/Resources/AppIcon.icns ($(du -h "$OUT_APP/Contents/Resources/AppIcon.icns" | awk '{print $1}'))"
 
 # Size gate for full pack (Mermaid included). Override with MAX_APP_KB.
 SIZE_KB=$(du -sk "$OUT_APP" | awk '{print $1}')

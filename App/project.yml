@@ -9,8 +9,8 @@ settings:
   base:
     PRODUCT_NAME: mdeasy
     PRODUCT_BUNDLE_IDENTIFIER: app.mdeasy.mdeasy
-    MARKETING_VERSION: 0.2.4
-    CURRENT_PROJECT_VERSION: 6
+    MARKETING_VERSION: 0.2.5
+    CURRENT_PROJECT_VERSION: 7
     SWIFT_VERSION: "5.0"
     MACOSX_DEPLOYMENT_TARGET: "12.0"
     ARCHS: [arm64, x86_64]
@@ -34,6 +34,8 @@ targets:
       - path: Sources
       - path: Resources
         type: folder
+        buildPhase: resources
+      - path: AppIcon.icns
         buildPhase: resources
     settings:
       configs:

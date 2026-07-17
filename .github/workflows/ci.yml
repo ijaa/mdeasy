@@ -58,9 +58,11 @@ jobs:
           APP=build/mdeasy.app
           INDEX=$(find "$APP/Contents/Resources" -name index.html | head -n1)
           APPJS=$(find "$APP/Contents/Resources" -name app.js | head -n1)
-          ICON=$(find "$APP/Contents/Resources" -name AppIcon.icns | head -n1)
+          ICON=$(find "$APP/Contents/Resources" -maxdepth 1 -name AppIcon.icns | head -n1)
           BIN="$APP/Contents/MacOS/mdeasy"
           test -n "$INDEX" && test -n "$APPJS" && test -n "$ICON" && test -x "$BIN"
+          test -f "$APP/Contents/Resources/AppIcon.icns"
+          ! test -f "$APP/Contents/Resources/Resources/AppIcon.icns" || echo "note: nested icon still present (ignored)"
           ! grep -q 'type="module"' "$INDEX"
           ! head -c 40 "$APPJS" | grep -q '^import'
           grep -q '__mdeasy' "$APPJS"
