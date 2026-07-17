@@ -271,19 +271,32 @@ body {
   margin-right: 0.4em;
 }
 
-.markdown-body .mermaid-placeholder {
-  border: 1px dashed var(--border);
+.markdown-body .mermaid-block {
+  margin: 0 0 1em;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--bg-elevated);
+}
+
+.markdown-body .mermaid-block svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+.markdown-body .mermaid-error {
+  border: 1px dashed #c45c5c;
   border-radius: 10px;
   padding: 12px 14px;
-  color: var(--fg-muted);
+  color: #a33;
   font-size: 13px;
   background: var(--bg-elevated);
 }
 
-.markdown-body .mermaid-placeholder code {
-  display: block;
-  margin-top: 8px;
-  white-space: pre-wrap;
-  background: transparent;
-  padding: 0;
+[data-theme="dark"] .markdown-body .mermaid-error {
+  color: #f0a0a0;
+  border-color: #8a4040;
 }

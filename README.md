@@ -1,37 +1,55 @@
 # mdeasy
 
-Tiny **offline Markdown reader** for macOS.
+Tiny **offline Markdown reader** for macOS — full pack with **Mermaid**.
 
 > Small · Fast · No account · No network · Focus on reading
 
 Inspired by [MDView](https://www.mdview.cn/).
 
-## Features (v0.1)
+## Features (v0.2 full)
 
-- Open / drag-drop / file association for `.md`
-- GFM: tables, task lists, strikethrough-friendly CommonMark
+- Open / drag-drop / **double-click** `.md` (default handler)
+- GFM: tables, task lists, auto-links
+- **Mermaid** diagrams (bundled, offline, lazy-loaded)
 - Live reload when the file changes on disk
 - Outline (H1–H3)
 - Themes: Light / Dark / Sepia / Green
 - Local images (sandboxed to the markdown folder)
-- Export HTML
+- Export HTML (includes rendered Mermaid SVG when possible)
 - Fully offline — no telemetry
 
-Mermaid is **not** bundled in the basic pack (placeholder shown). Optional full pack later.
+## Install (self-use, unsigned)
+
+1. Download **`mdeasy.app`** or **`.dmg`** from [Releases](https://github.com/ijaa/mdeasy/releases) / Actions artifacts  
+2. Drag `mdeasy.app` to **Applications** (recommended)  
+3. First open — **System Settings → Privacy & Security → Open Anyway**  
+4. Set as default Markdown app (pick one):
+
+### A. In app (recommended)
+
+**mdeasy → Set as Default Markdown App…**
+
+### B. Finder Get Info (always works)
+
+1. Select any `.md` file  
+2. **File → Get Info** (`⌘I`)  
+3. **Open with → mdeasy → Change All…**
+
+Then double-click any Markdown file to open in mdeasy.
 
 ## Requirements
 
 - macOS 12+
-- For **development of the reader UI**: Node.js 18+
-- For **building the .app**: Xcode (on GitHub Actions `macos-14`; not required on your laptop)
+- Reader UI dev: Node.js 18+
+- Building `.app`: Xcode on CI (`macos-14`); not required on your laptop
 
-## Quick start (reader only, no Xcode)
+## Quick start (reader only)
 
 ```bash
 cd reader
 npm ci
 npm run build
-npm run preview   # browser preview of the renderer
+npm run preview
 ```
 
 ## Build app (machine with Xcode)
@@ -42,32 +60,27 @@ npm run preview   # browser preview of the renderer
 ./scripts/ci-xcodebuild.sh
 # → build/mdeasy.app
 
-./scripts/package-dmg.sh
-# → build/mdeasy-0.1.0.dmg
+VERSION=0.2.0 ./scripts/package-dmg.sh
+# → build/mdeasy-0.2.0.dmg
 ```
 
-Or push to GitHub — **Actions** builds an unsigned `.app` artifact.
+Or push / tag on GitHub — Actions builds the unsigned app / release dmg.
 
-## First open (unsigned self-use build)
+## First open (unsigned)
 
-This project ships **without** Apple Developer signing (no annual fee).
-
-1. Open `mdeasy` (if macOS blocks it, dismiss the alert)
-2. Open **System Settings → Privacy & Security**
-3. Scroll to the security section — you should see that **mdeasy** was blocked
-4. Click **Open Anyway**, then confirm **Open**
-
-On the same Mac, later launches are usually normal.
+1. Open `mdeasy` (if blocked, dismiss the alert)  
+2. **System Settings → Privacy & Security**  
+3. Click **Open Anyway** for mdeasy  
 
 ## Repository layout
 
 ```
-App/                 Swift + WKWebView shell + Xcode project
-reader/              Static reader (esbuild + markdown-it)
+App/                 Swift + WKWebView shell
+reader/              Static reader (esbuild + markdown-it + mermaid)
 scripts/             build / sync / xcodebuild / dmg
 fixtures/            sample markdown
 .github/workflows/   CI + Release
-docs/技术方案.md      design notes
+docs/技术方案.md
 ```
 
 ## License

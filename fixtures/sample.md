@@ -1,6 +1,6 @@
 # Hello from fixtures
 
-This is a **sample** Markdown file for mdeasy.
+This is a **sample** Markdown file for mdeasy **full** pack.
 
 ## Lists
 
@@ -10,7 +10,7 @@ This is a **sample** Markdown file for mdeasy.
 ### Tasks
 
 - [x] Offline reading
-- [ ] Optional Mermaid pack
+- [x] Mermaid bundled
 
 ## Code
 
@@ -26,11 +26,21 @@ function greet(name) {
 | ------- | ------ |
 | GFM     | yes    |
 | Themes  | yes    |
+| Mermaid | yes    |
 
-## Mermaid (placeholder in basic pack)
+## Mermaid
 
 ```mermaid
 graph LR
   A[Open .md] --> B[Render]
   B --> C[Read]
+  C --> D[Done]
+```
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant M as mdeasy
+  U->>M: Double-click file.md
+  M-->>U: Rendered preview
 ```

@@ -1,7 +1,7 @@
 {
   "name": "mdeasy-reader",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
@@ -13,7 +13,8 @@
     "highlight.js": "^11.11.1",
     "markdown-it": "^14.1.0",
     "markdown-it-anchor": "^9.2.0",
-    "markdown-it-task-lists": "^2.1.1"
+    "markdown-it-task-lists": "^2.1.1",
+    "mermaid": "^11.6.0"
   },
   "devDependencies": {
     "esbuild": "^0.25.5"

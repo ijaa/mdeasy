@@ -1,4 +1,4 @@
-import { renderMarkdown, extractOutlineFromHtml } from "./md.js";
+import { renderMarkdown, extractOutlineFromHtml, documentHasMermaid } from "./md.js";
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -8,6 +8,8 @@ const state = {
   text: "",
   theme: "light",
   outlineOpen: true,
+  mermaidReady: false,
+  mermaidLoading: null,
 };
 
 function post(msg) {
@@ -24,6 +26,10 @@ function setTheme(name) {
   document.documentElement.setAttribute("data-theme", theme);
   const select = $("#theme-select");
   if (select) select.value = theme;
+  // Re-theme mermaid diagrams if present
+  if (state.mermaidReady && document.querySelector(".mermaid, .mermaid-block svg")) {
+    renderMermaidBlocks().catch(() => {});
+  }
 }
 
 function setOutlineOpen(open) {
@@ -85,7 +91,65 @@ function updateActiveOutline() {
   });
 }
 
-function showDoc({ path, text }) {
+async function ensureMermaid() {
+  if (state.mermaidReady) return window.mermaid;
+  if (state.mermaidLoading) return state.mermaidLoading;
+
+  state.mermaidLoading = (async () => {
+    const mod = await import("./mermaid-runtime.js");
+    const mermaid = mod.default;
+    const dark = state.theme === "dark";
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: "strict",
+      theme: dark ? "dark" : "default",
+      fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+    });
+    window.mermaid = mermaid;
+    state.mermaidReady = true;
+    return mermaid;
+  })();
+
+  try {
+    return await state.mermaidLoading;
+  } catch (err) {
+    state.mermaidLoading = null;
+    throw err;
+  }
+}
+
+async function renderMermaidBlocks() {
+  const nodes = [...document.querySelectorAll(".mermaid-block .mermaid, pre.mermaid")];
+  if (!nodes.length) return;
+
+  let mermaid;
+  try {
+    mermaid = await ensureMermaid();
+  } catch (err) {
+    nodes.forEach((node) => {
+      const wrap = node.closest(".mermaid-block") || node;
+      wrap.innerHTML = `<div class="mermaid-error">Mermaid failed to load: ${escapeHtml(String(err?.message || err))}</div>`;
+    });
+    return;
+  }
+
+  const dark = state.theme === "dark";
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: "strict",
+    theme: dark ? "dark" : "default",
+    fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+  });
+
+  // mermaid.run expects elements with class mermaid still containing source text
+  try {
+    await mermaid.run({ nodes, suppressErrors: true });
+  } catch (err) {
+    console.warn("mermaid.run error", err);
+  }
+}
+
+async function showDoc({ path, text }) {
   state.path = path;
   state.text = text ?? "";
   const title = basename(path);
@@ -100,6 +164,10 @@ function showDoc({ path, text }) {
   renderOutline(outline);
   content.scrollTop = 0;
   requestAnimationFrame(updateActiveOutline);
+
+  if (documentHasMermaid(state.text) || content.querySelector(".mermaid")) {
+    await renderMermaidBlocks();
+  }
 }
 
 function showEmpty() {
@@ -109,7 +177,7 @@ function showEmpty() {
   document.title = "mdeasy";
   const content = $("#content");
   content.classList.add("empty");
-  content.innerHTML = `<div class="empty-state"><h1>mdeasy</h1><p>Open a Markdown file to start reading.</p><p class="hint">⌘O open · drag & drop · double-click .md</p></div>`;
+  content.innerHTML = `<div class="empty-state"><h1>mdeasy</h1><p>Open a Markdown file to start reading.</p><p class="hint">⌘O open · drag & drop · double-click .md<br/>Menu: mdeasy → Set as Default Markdown App</p></div>`;
   renderOutline([]);
 }
 
@@ -117,8 +185,6 @@ function buildExportHtml() {
   const theme = state.theme;
   const body = $("#content")?.innerHTML ?? "";
   const title = basename(state.path) || "export";
-  // Inline minimal CSS by reading stylesheets text is hard offline; embed current computed tokens via style tags linked as absolute file won't work in export.
-  // We snapshot the three CSS files content from the page's styleSheets cssRules when possible.
   let css = "";
   try {
     for (const sheet of document.styleSheets) {
@@ -127,7 +193,7 @@ function buildExportHtml() {
           css += rule.cssText + "\n";
         }
       } catch {
-        // ignore cross-origin
+        // ignore
       }
     }
   } catch {
@@ -210,7 +276,6 @@ function bindUi() {
   });
 }
 
-// Public bridge for Swift evaluateJavaScript
 window.__mdeasy = {
   handle: handleNativeEvent,
 };
@@ -224,13 +289,13 @@ post({ type: "ready" });
 if (!window.webkit?.messageHandlers?.mdeasy) {
   const demo = `# mdeasy preview
 
-This is the **browser** preview of the reader.
+This is the **browser** preview of the full reader pack.
 
 ## Features
 
 - GFM tables
 - Task lists
-- \`inline code\`
+- Mermaid diagrams (bundled)
 
 \`\`\`js
 console.log("hello mdeasy");
@@ -241,13 +306,14 @@ console.log("hello mdeasy");
 | 1 | 2 |
 
 - [x] Offline
-- [ ] Mermaid engine (optional pack)
+- [x] Mermaid
 
 \`\`\`mermaid
 graph LR
-  A[md] --> B[reader]
+  A[Open .md] --> B[Render]
+  B --> C[Read]
 \`\`\`
 `;
   showDoc({ path: "preview.md", text: demo });
-  console.info("mdeasy reader: browser preview mode");
+  console.info("mdeasy reader: browser preview mode (full)");
 }

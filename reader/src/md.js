@@ -54,18 +54,22 @@ function slugify(text) {
     .replace(/^-|-$/g, "") || "section";
 }
 
+let mermaidBlockId = 0;
+
 const md = new MarkdownIt({
   html: false,
   linkify: true,
   typographer: true,
   highlight(str, lang) {
-    if (lang && lang.toLowerCase() === "mermaid") {
-      const escaped = md.utils.escapeHtml(str);
-      return `<div class="mermaid-placeholder"><strong>Mermaid</strong>（基础版未内置图表引擎）<code>${escaped}</code></div>`;
+    const language = (lang || "").toLowerCase();
+    if (language === "mermaid") {
+      const id = `mermaid-${++mermaidBlockId}`;
+      const escaped = md.utils.escapeHtml(str.trim());
+      return `<div class="mermaid-block" data-mermaid-id="${id}"><pre class="mermaid">${escaped}</pre></div>`;
     }
-    if (lang && hljs.getLanguage(lang)) {
+    if (language && hljs.getLanguage(language)) {
       try {
-        return `<pre class="hljs"><code>${hljs.highlight(str, { language: lang, ignoreIllegals: true }).value}</code></pre>`;
+        return `<pre class="hljs"><code>${hljs.highlight(str, { language, ignoreIllegals: true }).value}</code></pre>`;
       } catch {
         // fall through
       }
@@ -104,9 +108,9 @@ function rewriteImages(html) {
 }
 
 export function renderMarkdown(text) {
+  mermaidBlockId = 0;
   const raw = md.render(text ?? "");
-  const html = rewriteImages(raw);
-  return html;
+  return rewriteImages(raw);
 }
 
 export function extractOutlineFromHtml(html) {
@@ -116,8 +120,12 @@ export function extractOutlineFromHtml(html) {
   while ((m = re.exec(html))) {
     const level = Number(m[1]);
     const id = m[3];
-    const text = m[4].replace(/<[^>]+>/g, "").trim();
-    if (text) items.push({ level, id, text });
+    const textContent = m[4].replace(/<[^>]+>/g, "").trim();
+    if (textContent) items.push({ level, id, text: textContent });
   }
   return items;
+}
+
+export function documentHasMermaid(text) {
+  return /```\s*mermaid\b/i.test(text ?? "");
 }

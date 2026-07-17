@@ -9,7 +9,7 @@ on:
       version:
         description: "Version label for dmg name (e.g. 0.1.0)"
         required: false
-        default: "0.1.0"
+        default: "0.2.0"
 
 permissions:
   contents: write
@@ -32,7 +32,7 @@ jobs:
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             V="${GITHUB_REF_NAME#v}"
           else
-            V="${{ github.event.inputs.version || '0.1.0' }}"
+            V="${{ github.event.inputs.version || '0.2.0' }}"
           fi
           echo "version=$V" >> "$GITHUB_OUTPUT"
 
@@ -61,18 +61,23 @@ jobs:
           files: |
             build/mdeasy-*.dmg
           body: |
-            ## mdeasy ${{ steps.ver.outputs.version }}
+            ## mdeasy ${{ steps.ver.outputs.version }} (full)
 
+            Full offline pack: **GFM + Mermaid + themes + HTML export**.
             Unsigned self-use build (no Apple Developer signing).
 
-            ### First open on macOS (method B)
+            ### Install
+            1. Open the dmg / unzip and drag **mdeasy.app** to **Applications**
+            2. First launch: **System Settings → Privacy & Security → Open Anyway**
+            3. In app: **mdeasy → Set as Default Markdown App…**
+               - Or Finder: select `.md` → Get Info (`⌘I`) → Open with mdeasy → **Change All…**
+
+            ### First open (method B)
             1. Open `mdeasy` (if blocked, dismiss the alert)
             2. **System Settings → Privacy & Security**
             3. Find the message that **mdeasy** was blocked
             4. Click **Open Anyway**, confirm **Open**
 
-            Same Mac usually opens normally afterwards.
-
-            Offline Markdown reader — no account, no network, focus on reading.
+            Then double-click any `.md` file to read.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

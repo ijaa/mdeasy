@@ -35,6 +35,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         let appMenu = NSMenu()
         appMenuItem.submenu = appMenu
         appMenu.addItem(withTitle: "About mdeasy", action: #selector(showAbout), keyEquivalent: "")
+        appMenu.addItem(withTitle: "Set as Default Markdown App…", action: #selector(setAsDefaultApp(_:)), keyEquivalent: "")
         appMenu.addItem(NSMenuItem.separator())
         appMenu.addItem(withTitle: "Quit mdeasy", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
@@ -108,18 +109,47 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     @objc private func setThemeSepia(_ sender: Any?) { contentController.setTheme("sepia") }
     @objc private func setThemeGreen(_ sender: Any?) { contentController.setTheme("green") }
 
+    @objc private func setAsDefaultApp(_ sender: Any?) {
+        let result = DefaultAppService.setAsDefaultMarkdownViewer()
+        let alert = NSAlert()
+        alert.messageText = result.ok ? "Default app updated" : "Could not fully set default"
+        alert.informativeText = result.message
+        alert.alertStyle = result.ok ? .informational : .warning
+        alert.addButton(withTitle: "OK")
+        if !result.ok {
+            alert.addButton(withTitle: "Open Get Info Guide")
+        }
+        let response = alert.runModal()
+        if !result.ok && response == .alertSecondButtonReturn {
+            // Show a second hint alert
+            let tip = NSAlert()
+            tip.messageText = "Finder → Get Info"
+            tip.informativeText = """
+            1. Select any .md file in Finder
+            2. Press ⌘I (Get Info)
+            3. Open with → choose mdeasy
+            4. Click “Change All…”
+            """
+            tip.addButton(withTitle: "OK")
+            tip.runModal()
+        }
+    }
+
     @objc private func showAbout() {
         let info = Bundle.main.infoDictionary
         let version = info?["CFBundleShortVersionString"] as? String ?? "0.1.0"
         let alert = NSAlert()
         alert.messageText = "mdeasy"
         alert.informativeText = """
-        Version \(version)
+        Version \(version) (full)
 
-        A tiny offline Markdown reader for macOS.
-        No account. No network. Focus on reading.
+        Offline Markdown reader for macOS.
+        GFM · Mermaid · Themes · HTML export
 
-        Unsigned self-use build: System Settings → Privacy & Security → Open Anyway
+        Unsigned self-use build:
+        System Settings → Privacy & Security → Open Anyway
+
+        Set as default: mdeasy menu → Set as Default Markdown App…
         """
         alert.alertStyle = .informational
         alert.addButton(withTitle: "OK")
