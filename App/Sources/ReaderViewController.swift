@@ -31,7 +31,13 @@ final class DropView: NSView {
         }
         return items.map(\.path).filter { path in
             let lower = path.lowercased()
-            return lower.hasSuffix(".md") || lower.hasSuffix(".markdown") || lower.hasSuffix(".mdx") || lower.hasSuffix(".mdown")
+            return lower.hasSuffix(".md")
+                || lower.hasSuffix(".markdown")
+                || lower.hasSuffix(".mdx")
+                || lower.hasSuffix(".mdown")
+                || lower.hasSuffix(".mkd")
+                || lower.hasSuffix(".mkdn")
+                || lower.hasSuffix(".mdwn")
         }
     }
 }
@@ -41,8 +47,10 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
     private let assetHandler = AssetSchemeHandler()
     private let fileWatcher = FileWatcher()
     private var currentPath: String?
+    /// Latest document payload; re-sent on ready / navigation finish / failed JS eval.
+    private var latestDoc: [String: Any]?
     private var readerReady = false
-    private var pendingDoc: [String: Any]?
+    private var pageLoadID = 0
 
     override func loadView() {
         let drop = DropView(frame: NSRect(x: 0, y: 0, width: 960, height: 720))
@@ -66,8 +74,9 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
     private func setupWebView() {
         let config = WKWebViewConfiguration()
         config.setURLSchemeHandler(assetHandler, forURLScheme: AssetSchemeHandler.scheme)
-        config.userContentController.add(self, name: "mdeasy")
+        // Prefer page-world scripts.
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
+        config.userContentController.add(self, name: "mdeasy")
 
         let wv = WKWebView(frame: view.bounds, configuration: config)
         wv.autoresizingMask = [.width, .height]
@@ -80,7 +89,6 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
     }
 
     private func loadReader() {
-        // Folder reference "Resources" is copied as Contents/Resources/Resources/reader/
         let candidates: [URL] = {
             var urls: [URL] = []
             if let u = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "Resources/reader") {
@@ -100,11 +108,21 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
             showFatal("reader/index.html missing from app bundle.\nRun: ./scripts/build-reader.sh && ./scripts/sync-reader-to-app.sh")
             return
         }
+        // Allow the whole reader directory (scripts + chunks).
         let access = indexURL.deletingLastPathComponent()
+        NSLog("mdeasy: loading reader %@", indexURL.path)
+        readerReady = false
+        pageLoadID += 1
         webView.loadFileURL(indexURL, allowingReadAccessTo: access)
     }
 
     func openFile(path: String) {
+        // Always hop to main — Launch Services callbacks are usually main, but be safe.
+        if !Thread.isMainThread {
+            DispatchQueue.main.async { [weak self] in self?.openFile(path: path) }
+            return
+        }
+
         do {
             let payload = try FileService.readMarkdown(path: path)
             currentPath = payload.path
@@ -112,6 +130,7 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
             assetHandler.baseDir = URL(fileURLWithPath: payload.baseDir, isDirectory: true)
             fileWatcher.watch(path: payload.path)
             view.window?.title = URL(fileURLWithPath: payload.path).lastPathComponent
+
             let doc: [String: Any] = [
                 "type": "doc",
                 "path": payload.path,
@@ -120,11 +139,9 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
                 "encoding": payload.encoding,
                 "mtimeMs": payload.mtimeMs
             ]
-            if readerReady {
-                sendBridgeEvent(doc)
-            } else {
-                pendingDoc = doc
-            }
+            latestDoc = doc
+            NSLog("mdeasy: document ready (%d chars) readerReady=%@", payload.text.count, readerReady ? "yes" : "no")
+            pushLatestDocument(reason: "openFile")
         } catch {
             presentError(error.localizedDescription)
         }
@@ -154,13 +171,126 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
         sendBridgeEvent(["type": "theme", "name": name])
     }
 
-    func sendBridgeEvent(_ object: [String: Any]) {
+    func sendBridgeEvent(_ object: [String: Any], completion: ((Error?) -> Void)? = nil) {
+        guard let webView else {
+            completion?(BridgeError.noWebView)
+            return
+        }
+
+        // Prefer structured argument passing — avoids JS string quoting / UTF-8 pitfalls.
+        if #available(macOS 11.0, *) {
+            let script = """
+            (function(payload){
+              if (!window.__mdeasy || typeof window.__mdeasy.handle !== 'function') {
+                return 'no-handler';
+              }
+              window.__mdeasy.handle(payload);
+              return 'ok';
+            })(payload)
+            """
+            webView.callAsyncJavaScript(
+                script,
+                arguments: ["payload": object],
+                in: nil,
+                in: .page
+            ) { result in
+                switch result {
+                case .success(let value):
+                    let status = value as? String ?? "unknown"
+                    if status == "ok" {
+                        completion?(nil)
+                    } else {
+                        NSLog("mdeasy: bridge status=%@", status)
+                        completion?(BridgeError.handlerNotReady)
+                    }
+                case .failure(let error):
+                    NSLog("mdeasy: bridge callAsync error: %@", error.localizedDescription)
+                    // Fallback to evaluateJavaScript base64 path
+                    self.sendBridgeEventLegacy(object, completion: completion)
+                }
+            }
+            return
+        }
+
+        sendBridgeEventLegacy(object, completion: completion)
+    }
+
+    private func sendBridgeEventLegacy(_ object: [String: Any], completion: ((Error?) -> Void)? = nil) {
         guard
             let data = try? JSONSerialization.data(withJSONObject: object, options: []),
-            let json = String(data: data, encoding: .utf8)
-        else { return }
-        let js = "window.__mdeasy && window.__mdeasy.handle(\(json));"
-        webView?.evaluateJavaScript(js, completionHandler: nil)
+            let webView
+        else {
+            completion?(BridgeError.encodeFailed)
+            return
+        }
+
+        let b64 = data.base64EncodedString()
+        let js = """
+        (function(){
+          try {
+            if (!window.__mdeasy || typeof window.__mdeasy.handle !== 'function') {
+              return 'no-handler';
+            }
+            var bin = atob('\(b64)');
+            var bytes = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            var text = new TextDecoder('utf-8').decode(bytes);
+            window.__mdeasy.handle(JSON.parse(text));
+            return 'ok';
+          } catch (e) {
+            return 'error:' + (e && e.message ? e.message : String(e));
+          }
+        })();
+        """
+
+        webView.evaluateJavaScript(js) { result, error in
+            if let error {
+                NSLog("mdeasy: bridge eval error: %@", error.localizedDescription)
+                completion?(error)
+                return
+            }
+            let status = result as? String ?? "unknown"
+            if status != "ok" {
+                NSLog("mdeasy: bridge status=%@", status)
+                completion?(BridgeError.handlerNotReady)
+                return
+            }
+            completion?(nil)
+        }
+    }
+
+    private func pushLatestDocument(reason: String) {
+        guard let doc = latestDoc else { return }
+
+        if !readerReady {
+            NSLog("mdeasy: defer doc push (%@) — reader not ready", reason)
+            return
+        }
+
+        sendBridgeEvent(doc) { [weak self] error in
+            guard let self else { return }
+            if error != nil {
+                // Retry a few times while the page finishes wiring the handler.
+                self.scheduleDocRetry(attempt: 1)
+            } else {
+                NSLog("mdeasy: doc pushed (%@)", reason)
+            }
+        }
+    }
+
+    private func scheduleDocRetry(attempt: Int) {
+        guard attempt <= 8, latestDoc != nil else { return }
+        let delay = 0.05 * Double(attempt)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, let doc = self.latestDoc else { return }
+            self.sendBridgeEvent(doc) { err in
+                if err != nil {
+                    self.scheduleDocRetry(attempt: attempt + 1)
+                } else {
+                    NSLog("mdeasy: doc pushed on retry #%d", attempt)
+                }
+            }
+        }
     }
 
     private func handleFileChanged(path: String) {
@@ -184,6 +314,32 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
         view.addSubview(label)
     }
 
+    // MARK: - WKNavigationDelegate
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        NSLog("mdeasy: webView didFinish")
+        // If JS already posted ready, re-push. If not, ready handler will push.
+        if readerReady {
+            pushLatestDocument(reason: "didFinish")
+        } else {
+            // Probe: sometimes ready message is lost; try marking ready if handler exists.
+            webView.evaluateJavaScript("!!(window.__mdeasy && window.__mdeasy.handle)") { [weak self] result, _ in
+                if let ok = result as? Bool, ok {
+                    self?.readerReady = true
+                    self?.pushLatestDocument(reason: "didFinish-probe")
+                }
+            }
+        }
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        NSLog("mdeasy: webView didFail %@", error.localizedDescription)
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        NSLog("mdeasy: webView provisional fail %@", error.localizedDescription)
+    }
+
     // MARK: - WKScriptMessageHandler
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -193,15 +349,13 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
 
         switch type {
         case "ready":
+            NSLog("mdeasy: reader JS ready")
             readerReady = true
             sendBridgeEvent([
                 "type": "theme",
                 "name": Preferences.shared.theme
             ])
-            if let pendingDoc {
-                sendBridgeEvent(pendingDoc)
-                self.pendingDoc = nil
-            }
+            pushLatestDocument(reason: "js-ready")
         case "export-html":
             handleExport(body)
         case "open-in-editor":
@@ -237,6 +391,20 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
                 try html.write(to: url, atomically: true, encoding: .utf8)
             } catch {
                 NSAlert(error: error).runModal()
+            }
+        }
+    }
+
+    private enum BridgeError: LocalizedError {
+        case encodeFailed
+        case noWebView
+        case handlerNotReady
+
+        var errorDescription: String? {
+            switch self {
+            case .encodeFailed: return "Failed to encode bridge payload"
+            case .noWebView: return "WebView not ready"
+            case .handlerNotReady: return "JS handler not ready"
             }
         }
     }

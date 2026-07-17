@@ -223,30 +223,36 @@ ${body}
 
 function handleNativeEvent(msg) {
   if (!msg || typeof msg !== "object") return;
-  switch (msg.type) {
-    case "doc":
-      state.baseDir = msg.baseDir;
-      showDoc({ path: msg.path, text: msg.text });
-      break;
-    case "file-changed":
-      showDoc({ path: msg.path || state.path, text: msg.text });
-      break;
-    case "theme":
-      setTheme(msg.name);
-      break;
-    case "toggle-outline":
-      setOutlineOpen(!state.outlineOpen);
-      post({ type: "set-preference", key: "outlineOpen", value: state.outlineOpen });
-      break;
-    case "request-export": {
-      if (!state.path) return;
-      const html = buildExportHtml();
-      const base = basename(state.path).replace(/\.(md|markdown|mdx|mdown)$/i, "");
-      post({ type: "export-html", html, suggestedName: `${base}.html` });
-      break;
+  try {
+    switch (msg.type) {
+      case "doc":
+        state.baseDir = msg.baseDir;
+        console.info("mdeasy: doc received", msg.path, "chars=", (msg.text || "").length);
+        showDoc({ path: msg.path, text: msg.text });
+        break;
+      case "file-changed":
+        showDoc({ path: msg.path || state.path, text: msg.text });
+        break;
+      case "theme":
+        setTheme(msg.name);
+        break;
+      case "toggle-outline":
+        setOutlineOpen(!state.outlineOpen);
+        post({ type: "set-preference", key: "outlineOpen", value: state.outlineOpen });
+        break;
+      case "request-export": {
+        if (!state.path) return;
+        const html = buildExportHtml();
+        const base = basename(state.path).replace(/\.(md|markdown|mdx|mdown|mkd|mkdn|mdwn)$/i, "");
+        post({ type: "export-html", html, suggestedName: `${base}.html` });
+        break;
+      }
+      default:
+        break;
     }
-    default:
-      break;
+  } catch (err) {
+    console.error("mdeasy: handle failed", err);
+    post({ type: "error", message: String(err?.message || err) });
   }
 }
 
@@ -280,10 +286,16 @@ window.__mdeasy = {
   handle: handleNativeEvent,
 };
 
+// Expose a simple fingerprint for native probing.
+window.__mdeasyVersion = "0.2.2";
+
 bindUi();
 setTheme("light");
 showEmpty();
+// ready may race with native openFile — native side keeps latestDoc and retries.
 post({ type: "ready" });
+// Second ready tick helps if the first message was sent before the handler was attached on the native side.
+setTimeout(() => post({ type: "ready" }), 50);
 
 // Browser-only preview helper (no native bridge)
 if (!window.webkit?.messageHandlers?.mdeasy) {

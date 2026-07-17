@@ -5,17 +5,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pendingPaths: [String] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Ensure we are a normal foreground app with Dock icon + menu bar.
         NSApp.setActivationPolicy(.regular)
 
         let wc = MainWindowController()
         windowController = wc
         wc.showWindow(nil)
 
-        // Force key/front in case autosaved frame was off-screen or order was wrong.
         if let window = wc.window {
             window.makeKeyAndOrderFront(nil)
-            // If frame is off any screen, re-center.
             if NSScreen.screens.allSatisfy({ !$0.visibleFrame.intersects(window.frame) }) {
                 window.center()
                 window.makeKeyAndOrderFront(nil)
@@ -24,13 +21,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.activate(ignoringOtherApps: true)
 
-        if !pendingPaths.isEmpty {
-            for path in pendingPaths {
-                wc.openFile(path: path)
-            }
-            pendingPaths.removeAll()
+        // Files may arrive via Apple Events before or after this callback.
+        flushPendingPaths()
+
+        // Some Launch Services paths only show up slightly after launch.
+        DispatchQueue.main.async { [weak self] in
+            self?.flushPendingPaths()
         }
-        // Do not auto-open last file on cold start — keeps first launch predictable.
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -50,29 +47,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    // Modern Finder double-click / `open -a` path (macOS 10.13+).
     func application(_ application: NSApplication, open urls: [URL]) {
-        let paths = urls.map(\.path)
+        enqueue(paths: urls.map { $0.standardizedFileURL.path })
+    }
+
+    // Legacy path still used by some system versions / tools.
+    func application(_ sender: NSApplication, openFile filename: String) -> Bool {
+        enqueue(paths: [filename])
+        return true
+    }
+
+    func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        enqueue(paths: filenames)
+        // Required when implementing openFiles: tell AppKit we handled them.
+        sender.reply(toOpenOrPrint: .success)
+    }
+
+    private func enqueue(paths: [String]) {
+        let cleaned = paths
+            .map { ($0 as NSString).expandingTildeInPath }
+            .map { URL(fileURLWithPath: $0).standardizedFileURL.path }
+            .filter { !$0.isEmpty }
+
+        guard !cleaned.isEmpty else { return }
+
         if let wc = windowController {
-            for path in paths {
+            for path in cleaned {
+                NSLog("mdeasy: open request → %@", path)
                 wc.openFile(path: path)
             }
             wc.showWindow(nil)
             wc.window?.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
         } else {
-            pendingPaths.append(contentsOf: paths)
+            pendingPaths.append(contentsOf: cleaned)
+            NSLog("mdeasy: queued %d path(s) before window ready", cleaned.count)
         }
     }
 
-    func application(_ sender: NSApplication, openFile filename: String) -> Bool {
-        if let wc = windowController {
-            wc.openFile(path: filename)
-            wc.showWindow(nil)
-            wc.window?.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-        } else {
-            pendingPaths.append(filename)
+    private func flushPendingPaths() {
+        guard let wc = windowController, !pendingPaths.isEmpty else { return }
+        let paths = pendingPaths
+        pendingPaths.removeAll()
+        for path in paths {
+            NSLog("mdeasy: flush queued → %@", path)
+            wc.openFile(path: path)
         }
-        return true
+        wc.showWindow(nil)
+        wc.window?.makeKeyAndOrderFront(nil)
     }
 }
