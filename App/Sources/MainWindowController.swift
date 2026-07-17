@@ -7,24 +7,38 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     convenience init() {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 960, height: 720),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "mdeasy"
         window.minSize = NSSize(width: 480, height: 360)
+        window.isReleasedWhenClosed = false
+        window.collectionBehavior = [.fullScreenPrimary, .managed]
         window.center()
-        window.titlebarAppearsTransparent = true
-        window.setFrameAutosaveName("MainWindow")
 
         self.init(window: window)
         window.delegate = self
         window.contentViewController = contentController
+        // Apply autosave AFTER first center, and only if saved frame is on-screen.
+        window.setFrameUsingName("MainWindow")
+        if NSScreen.screens.allSatisfy({ !$0.visibleFrame.intersects(window.frame) }) {
+            window.setFrame(NSRect(x: 0, y: 0, width: 960, height: 720), display: false)
+            window.center()
+        }
+        window.setFrameAutosaveName("MainWindow")
         setupMenu()
+    }
+
+    override func showWindow(_ sender: Any?) {
+        super.showWindow(sender)
+        window?.makeKeyAndOrderFront(sender)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     func openFile(path: String) {
         contentController.openFile(path: path)
+        showWindow(nil)
     }
 
     private func setupMenu() {
@@ -61,6 +75,15 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         viewMenu.addItem(withTitle: "Theme: Dark", action: #selector(setThemeDark(_:)), keyEquivalent: "2")
         viewMenu.addItem(withTitle: "Theme: Sepia", action: #selector(setThemeSepia(_:)), keyEquivalent: "3")
         viewMenu.addItem(withTitle: "Theme: Green", action: #selector(setThemeGreen(_:)), keyEquivalent: "4")
+
+        let windowMenuItem = NSMenuItem()
+        mainMenu.addItem(windowMenuItem)
+        let windowMenu = NSMenu(title: "Window")
+        windowMenuItem.submenu = windowMenu
+        windowMenu.addItem(withTitle: "Bring All to Front", action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
+        windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowMenu.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        NSApp.windowsMenu = windowMenu
 
         NSApp.mainMenu = mainMenu
     }
@@ -121,7 +144,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
         let response = alert.runModal()
         if !result.ok && response == .alertSecondButtonReturn {
-            // Show a second hint alert
             let tip = NSAlert()
             tip.messageText = "Finder → Get Info"
             tip.informativeText = """
@@ -137,7 +159,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     @objc private func showAbout() {
         let info = Bundle.main.infoDictionary
-        let version = info?["CFBundleShortVersionString"] as? String ?? "0.1.0"
+        let version = info?["CFBundleShortVersionString"] as? String ?? "0.2.0"
         let alert = NSAlert()
         alert.messageText = "mdeasy"
         alert.informativeText = """

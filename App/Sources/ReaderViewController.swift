@@ -80,36 +80,27 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
     }
 
     private func loadReader() {
-        let candidates: [(String?, String)] = [
-            ("reader", "index"),
-            ("Resources/reader", "index"),
-        ]
-        var indexURL: URL?
-        var access: URL?
-        for (sub, name) in candidates {
-            if let url = Bundle.main.url(forResource: name, withExtension: "html", subdirectory: sub) {
-                indexURL = url
-                access = url.deletingLastPathComponent()
-                break
+        // Folder reference "Resources" is copied as Contents/Resources/Resources/reader/
+        let candidates: [URL] = {
+            var urls: [URL] = []
+            if let u = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "Resources/reader") {
+                urls.append(u)
             }
-        }
-        // Folder-reference fallback: …/Contents/Resources/Resources/reader/index.html
-        if indexURL == nil, let resourceURL = Bundle.main.resourceURL {
-            let nested = resourceURL.appendingPathComponent("Resources/reader/index.html")
-            let flat = resourceURL.appendingPathComponent("reader/index.html")
-            if FileManager.default.fileExists(atPath: flat.path) {
-                indexURL = flat
-                access = flat.deletingLastPathComponent()
-            } else if FileManager.default.fileExists(atPath: nested.path) {
-                indexURL = nested
-                access = nested.deletingLastPathComponent()
+            if let u = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "reader") {
+                urls.append(u)
             }
-        }
+            if let resourceURL = Bundle.main.resourceURL {
+                urls.append(resourceURL.appendingPathComponent("Resources/reader/index.html"))
+                urls.append(resourceURL.appendingPathComponent("reader/index.html"))
+            }
+            return urls
+        }()
 
-        guard let indexURL, let access else {
+        guard let indexURL = candidates.first(where: { FileManager.default.fileExists(atPath: $0.path) }) else {
             showFatal("reader/index.html missing from app bundle.\nRun: ./scripts/build-reader.sh && ./scripts/sync-reader-to-app.sh")
             return
         }
+        let access = indexURL.deletingLastPathComponent()
         webView.loadFileURL(indexURL, allowingReadAccessTo: access)
     }
 
