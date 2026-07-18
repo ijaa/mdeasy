@@ -187,14 +187,18 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
 
     /// Render the current WKWebView content to a paginated PDF (macOS 12+).
     /// Native path — no JS-side HTML assembly needed; reflects the live theme and CSS.
-    /// Signature: WKWebView.createPDF(configuration:completionHandler:) (NS_REFINED_FOR_SWIFT:
-    /// ObjC `createPDFWithConfiguration:completionHandler:` → Swift `createPDF(configuration:)`).
+    /// Swift signature (macOS 12 SDK, *_NS_REFINED_*): createPDF(configuration: Result<Data, Error>-closure,
+    /// parameter label is `configuration:` — there is no `with:` label here.
     private func writePDF(from webView: WKWebView, to url: URL) {
-        webView.createPDF(configuration: WKPDFConfiguration()) { [weak self] data, error in
+        webView.createPDF(configuration: WKPDFConfiguration()) { [weak self] (result: Result<Data, Error>) in
             DispatchQueue.main.async {
-                if let data, (try? data.write(to: url, options: .atomic)) != nil { return }
-                let msg = error?.localizedDescription ?? "PDF export produced no data"
-                self?.presentError("PDF export failed: \(msg)")
+                switch result {
+                case .success(let data):
+                    if (try? data.write(to: url, options: .atomic)) != nil { return }
+                    self?.presentError("PDF export failed: could not write file")
+                case .failure(let error):
+                    self?.presentError("PDF export failed: \(error.localizedDescription)")
+                }
             }
         }
     }
