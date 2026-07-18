@@ -193,23 +193,34 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
         webView.callAsyncJavaScript(
             """
             (function() {
-              // 幂等：若已存在先移除，避免上次异常残留。
+              function snap() {
+                var c = document.querySelector('.markdown-body');
+                return {
+                  vport: window.innerHeight,
+                  docClient: document.documentElement.clientHeight,
+                  docScroll: document.documentElement.scrollHeight,
+                  bodyScroll: document.body ? document.body.scrollHeight : -1,
+                  contentScroll: c ? c.scrollHeight : -1,
+                  contentClient: c ? c.clientHeight : -1,
+                  appMinHeight: getComputedStyle(document.getElementById('app')||document.body).minHeight
+                };
+              }
+              var before = snap();
               document.getElementById('mdeye-print-mode')?.remove();
               var style = document.createElement('style');
               style.id = 'mdeye-print-mode';
               style.textContent = ''
                 + 'html, body { height:auto !important; min-height:0 !important; overflow:visible !important; }'
-                + '#app, #main { display:block !important; height:auto !important; min-height:0 !important; }'
+                + '#app { display:block !important; height:auto !important; min-height:0 !important; }'
+                + '#main { display:block !important; height:auto !important; min-height:0 !important; }'
                 + '.markdown-body { flex:none !important; overflow:visible !important; height:auto !important; max-height:none !important; padding:28px 32px 64px !important; }'
                 + '.outline, .toolbar { display:none !important; }';
               document.head.appendChild(style);
               return new Promise(function(resolve) {
                 requestAnimationFrame(function() {
                   requestAnimationFrame(function() {
-                    resolve({
-                      width: document.documentElement.clientWidth,
-                      height: Math.ceil(document.documentElement.scrollHeight)
-                    });
+                    resolve({ before: before, after: snap(), width: document.documentElement.clientWidth,
+                             height: Math.ceil(document.documentElement.scrollHeight) });
                   });
                 });
               });
@@ -222,6 +233,7 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
             guard let self else { return }
             switch result {
             case .success(let value):
+                let dbg = debugMeasure(value)
                 let width: Double
                 let height: Double
                 if let dict = value as? [String: Any],
@@ -231,32 +243,43 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
                     width = w
                     height = h
                 } else {
-                    NSLog("mdeye: print-mode probe unexpected, fallback to viewport rect")
                     width = Double(webView.bounds.width)
                     height = Double(webView.bounds.height)
                 }
-                self.renderPDF(on: webView, to: url, width: width, height: height)
+                self.renderPDF(on: webView, to: url, width: width, height: height, debugInfo: dbg)
             case .failure(let error):
                 NSLog("mdeye: print-mode inject failed: %@", error.localizedDescription)
                 webView.evaluateJavaScript("document.getElementById('mdeye-print-mode')?.remove()")
                 self.renderPDF(on: webView, to: url,
                                width: Double(webView.bounds.width),
-                               height: Double(webView.bounds.height))
+                               height: Double(webView.bounds.height),
+                               debugInfo: "inject FAILED: \(error.localizedDescription)")
             }
         }
     }
 
-    private func renderPDF(on webView: WKWebView, to url: URL, width: Double, height: Double) {
+    /// TEMP DEBUG: 把注入前后实测组装成人类可读字符串。
+    private func debugMeasure(_ value: Any) -> String {
+        guard let d = value as? [String: Any] else { return "non-dict: \(value)" }
+        func snap(_ s: Any?) -> String {
+            guard let m = s as? [String: Any] else { return "?" }
+            func n(_ k: String) -> String { String(describing: m[k] ?? "?") }
+            return "vport=\(n("vport")) docClient=\(n("docClient")) docScroll=\(n("docScroll")) bodyScroll=\(n("bodyScroll")) contentScroll=\(n("contentScroll")) contentClient=\(n("contentClient")) appMinH=\(n("appMinHeight"))"
+        }
+        return "BEFORE \(snap(d["before"]))\nAFTER  \(snap(d["after"]))\n→ width=\(d["width"] ?? "?") height=\(d["height"] ?? "?")"
+    }
+
+    private func renderPDF(on webView: WKWebView, to url: URL, width: Double, height: Double, debugInfo: String) {
         let cfg = WKPDFConfiguration()
         cfg.rect = CGRect(x: 0, y: 0, width: width, height: height)
         webView.createPDF(configuration: cfg) { [weak self] (result: Result<Data, Error>) in
             DispatchQueue.main.async {
-                // 无论成功失败都恢复阅读态。
                 webView.evaluateJavaScript("document.getElementById('mdeye-print-mode')?.remove()")
                 switch result {
                 case .success(let data):
-                    if (try? data.write(to: url, options: .atomic)) != nil { return }
-                    self?.presentError("PDF export failed: could not write file")
+                    let wrote = (try? data.write(to: url, options: .atomic)) != nil
+                    // TEMP DEBUG: 导出后弹实测，便于定位"只一屏"根因。定位后移除。
+                    self?.presentError("[PDF DEBUG] wrote=\(wrote) bytes=\(data.count)\nrect w=\(width) h=\(height)\n\n\(debugInfo)")
                 case .failure(let error):
                     self?.presentError("PDF export failed: \(error.localizedDescription)")
                 }
