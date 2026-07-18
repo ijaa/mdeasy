@@ -96,4 +96,5 @@ rm -f "$PDF"
 "$BIN" --pdf-selftest "$MD" "$PDF"
 [[ -s "$PDF" ]] || { echo "FAIL: PDF was not created" >&2; exit 1; }
 [[ "$(head -c 4 "$PDF")" == "%PDF" ]] || { echo "FAIL: invalid PDF header" >&2; exit 1; }
+cp "$PDF" "$ROOT/build/pdf-selftest.pdf"
 echo "PDF SELFTEST CI OK ($(du -h "$PDF" | awk '{print $1}'))"

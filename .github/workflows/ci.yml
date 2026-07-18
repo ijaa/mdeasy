@@ -83,4 +83,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mdeye-app
-          path: build/mdeye.app
+          path: |
+            build/mdeye.app
+            build/pdf-selftest.pdf
