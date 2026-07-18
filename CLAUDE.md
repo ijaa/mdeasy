@@ -97,3 +97,9 @@ Reader 开发不依赖本机 Xcode。`git push` / `git tag v*` 会触发 `.githu
 
 ## 版本发布
 在 `App/Info.plist` 改 `CFBundleShortVersionString`（通常一并改 `CFBundleVersion`）。`build.mjs` 会自动读取，无需在 JS 硬编码。然后打 `v*` tag 触发发布工作流。
+
+### 发版前必须本机/CI 编译验证（0.5.0 教训）
+- **不要只靠记忆/猜测 AppKit/WebKit Swift API 签名。** 0.5.0 发布时 PDF 导出从原生 `createPDF` 切到系统打印管线，连续两次因 API 名错（误用 `guard let` 接非可选、把属于 `NSPrintPanel` 的 `runOperationModal(for:delegate:didRun:contextInfo:)` 当成 `NSPrintOperation` 的方法、`runOperation()` 已 rename 为 `run()`）导致 `release.yml` 编译失败、来回 force-update tag 重跑。最终正确入口只是 `printOp.run()`。
+- **本机无 Xcode 时更要在 push 前用某种方式过编译。** 仓库已沉淀两条路：(1) 本机装 Xcode 跑 `./scripts/ci-xcodebuild.sh`；(2) push 到普通分支让 `ci.yml` 的 `mac-app` job 先跑通 Universal 编译（见下条建议），再打 tag 触发 `release.yml`。**严禁跳过编译直接打 tag 发布 Swift 改动**。
+- **可加的安全网（建议）**：让 `ci.yml` 在 push 到 `main`（非 tag）也触发 `mac-app` 编译 job，使"push 后即可知编译错"而非"tag 后才发现"。当前 `release.yml` 仅 tag 触发，编译错会在发版末段才暴露。
+- **覆盖盲区**：无头 `--selftest` 只验渲染到 `doc-shown`；打印面板、`NSSavePanel`、PDF 落盘等 GUI 交互**不在 CI 覆盖范围**，需本机 GUI 烟测。改这些路径时尤其要先本机编译+手测。

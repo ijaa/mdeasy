@@ -292,6 +292,23 @@ mdeye/
 - 构建 app + dmg  
 - GitHub Release 正文含安装与「仍要打开」说明  
 
+### 7.2.1 发版前编译验证（0.5.0 教训）
+
+> **Swift 改动严禁跳过编译直接打 tag 发布。**
+
+0.5.0 把 PDF 导出从原生 `createPDF` 切到系统打印管线时，本机无 Xcode 无法预编译，靠记忆猜 AppKit/WebKit API，连续两次编译失败 → 反复 force-update tag 重跑 `release.yml`：
+
+1. 误用 `guard let printOp = webView.printOperation(with:)` —— 返回值非可选，不允许条件绑定。
+2. 误把 `runOperationModal(for:delegate:didRun:contextInfo:)` 当成 `NSPrintOperation` 的方法（实际是 `NSPrintPanel` 的），且 `runOperation()` 在 macOS 12 SDK 已 rename 为 `run()`。
+3. 最终正确入口只是 `printOp.run()`。
+
+守则：
+
+- 不靠记忆/猜测 Swift API 签名；以当前 SDK 表里方法名为准（`NSPrintOperation` 的运行入口是 `run()`，打印面板由 `showsPrintPanel` 开关驱动，不是手动 `runOperationModal`）。
+- 本机有 Xcode 跑 `./scripts/ci-xcodebuild.sh` 出 Universal 二进制再打 tag；本机无 Xcode 时改 Swift 也应先 push 到普通分支让 `ci.yml` 的 `mac-app` job 编译通过后再 tag。
+- 可选安全网（建议采纳）：让 `ci.yml` 在 push 到 `main` 即触发 `mac-app` 编译 job，使"push 后立即知编译错"，而非"tag 后才在 `release.yml` 末段暴露"。
+- 覆盖盲区：无头 `--selftest` 只验渲染到 `doc-shown`；打印面板 / `NSSavePanel` / PDF 落盘等 GUI 交互**不在 CI 覆盖**，改这些路径须本机 GUI 手测。
+
 ### 7.3 自用打开（方式 B）
 
 1. 打开 app（若拦截则关闭提示）  
@@ -373,6 +390,7 @@ mdeye/
 | 0.3.0 | HTML→PDF 导出 / 多文件静默覆盖 / 版本漂移 / 沙箱不一致 / CI 无渲染验证 | 原生 createPDF + 单文件语义 + 版本单源注入 + PathSandbox + headless --selftest |
 | 0.4.0 | 原 `createPDF` 空构造只截一屏 + 大纲/工具条被写入 PDF + 机械切片分页差 | 改走 WebKit 系统打印管线（`NSPrintOperation`）+ reader.css `@media print`（排除大纲/工具条、`break-*` 控分页） |
 | 0.5.0 | 文档内 .md 链接点击无反应（裸跳自定义协议必败）；协议 MIT→Apache-2.0 | 正文 click 委托 + 桥接 `open-md-link`，复用 `FileService.resolveAsset` 同树沙箱解析 → `openFile` 单文件替换 |
+| 0.5.0（教训） | 切 PDF 到打印管线时本机无 Xcode，靠记忆猜 `NSPrintOperation` API → 连续两次 `release.yml` 编译失败、来回 force-update tag | 守则：Swift 改动 push 前必须过编译（本机 `ci-xcodebuild.sh` 或让 `ci.yml` push-to-main 跑 `mac-app`），打印/PDF 等 GUI 路径需手测；不靠记忆猜 API |
 
 ## 附录 B. 参考
 
