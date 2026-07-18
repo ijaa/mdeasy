@@ -186,26 +186,29 @@ async function preparePrint() {
 
   state.printPreparation = (async () => {
     if (document.fonts?.ready) {
-      await document.fonts.ready;
+      await Promise.race([document.fonts.ready, delay(2000)]);
     }
 
     const images = [...document.images];
     await Promise.all(
       images.map(async (img) => {
         if (!img.complete) {
-          await new Promise((resolve) => {
-            img.addEventListener("load", resolve, { once: true });
-            img.addEventListener("error", resolve, { once: true });
-          });
+          await Promise.race([
+            new Promise((resolve) => {
+              img.addEventListener("load", resolve, { once: true });
+              img.addEventListener("error", resolve, { once: true });
+            }),
+            delay(5000),
+          ]);
         }
         if (typeof img.decode === "function") {
-          await img.decode().catch(() => {});
+          await Promise.race([img.decode().catch(() => {}), delay(5000)]);
         }
       })
     );
 
-    await new Promise(requestAnimationFrame);
-    await new Promise(requestAnimationFrame);
+    await waitForLayoutFrame();
+    await waitForLayoutFrame();
     post({ type: "print-ready" });
   })().catch((err) => {
     state.printPreparation = null;
@@ -213,6 +216,25 @@ async function preparePrint() {
   });
 
   return state.printPreparation;
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function waitForLayoutFrame() {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    requestAnimationFrame(finish);
+    // Offscreen WKWebViews can suspend animation frames; a timer still lets WebKit
+    // flush style and layout before printing in headless CI and background exports.
+    setTimeout(finish, 100);
+  });
 }
 
 function showEmpty() {
