@@ -198,6 +198,7 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
               var style = document.createElement('style');
               style.id = 'mdeye-print-mode';
               style.textContent = ''
+                + 'html, body { height:auto !important; min-height:0 !important; overflow:visible !important; }'
                 + '#app, #main { display:block !important; height:auto !important; min-height:0 !important; }'
                 + '.markdown-body { flex:none !important; overflow:visible !important; height:auto !important; max-height:none !important; padding:28px 32px 64px !important; }'
                 + '.outline, .toolbar { display:none !important; }';
