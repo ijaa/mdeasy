@@ -2,8 +2,8 @@
 # Headless rendering self-check for CI. Runs mdeasy with `--selftest <md>` on a
 # runner that has NO GUI login / WindowServer session, and asserts the reader
 # actually rendered by polling /tmp/mdeasy-last-shown.json.
-# This covers what free fetched CI can: the load → IIFE → bridge → render → doc-shown
-# pipeline. It does NOT cover NSSavePanel / PDF export (user-interactive, needs GUI).
+# This covers what CI can: the load → IIFE → bridge → render → doc-shown pipeline.
+# It does NOT cover NSSavePanel / PDF export (user-interactive, needs GUI).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -16,7 +16,10 @@ if [[ ! -x "$BIN" ]]; then
   exit 1
 fi
 
-MD="$(mktemp /tmp/mdeasy-selftest-XXXX.md)"
+# mktemp needs >=6 trailing X to actually substitute a random suffix.
+MD_BASE="$(mktemp /tmp/mdeasy-selftest.XXXXXX)"
+rm -f "$MD_BASE"
+MD="$MD_BASE.md"
 trap 'rm -f "$MD" /tmp/mdeasy-last-shown.json' EXIT
 cat >"$MD" <<'EOF'
 # Selftest
@@ -39,35 +42,48 @@ EOF
 
 rm -f /tmp/mdeasy-last-shown.json
 
+check_stamp() {
+  # Returns 0 only if a doc-shown stamp exists for our fixture with non-trivial content.
+  [[ -f /tmp/mdeasy-last-shown.json ]] || return 1
+  local sp sc
+  sp=$(python3 -c 'import json;print(json.load(open("/tmp/mdeasy-last-shown.json")).get("path",""))' 2>/dev/null || true)
+  sc=$(python3 -c 'import json;print(json.load(open("/tmp/mdeasy-last-shown.json")).get("chars",-1))' 2>/dev/null || true)
+  if [[ "$sp" == "$MD" && "$sc" -ge 10 ]]; then
+    echo "stamp ok path=$sp chars=$sc"
+    return 0
+  fi
+  return 1
+}
+
+print_failure() {
+  echo "FAIL: no matching doc-shown stamp for $MD" >&2
+  echo "stamp now:" >&2
+  cat /tmp/mdeasy-last-shown.json 2>/dev/null >&2 || echo "(missing)" >&2
+  exit 1
+}
+
 echo "== selftest run =="
 "$BIN" --selftest "$MD" &
 PID=$!
+wait "$PID" && EXITCODE=0 || EXITCODE=$?
 
-# Wait up to 40s for the doc-shown stamp matching our fixture.
-for i in $(seq 1 160); do
-  if ! kill -0 "$PID" 2>/dev/null; then
-    # process exited; collect its status
-    wait "$PID" && EXITCODE=0 || EXITCODE=$?
-    break
-  fi
-  if [[ -f /tmp/mdeasy-last-shown.json ]]; then
-    STAMP_PATH=$(python3 -c 'import json;print(json.load(open("/tmp/mdeasy-last-shown.json")).get("path",""))' 2>/dev/null || true)
-    STAMP_CHARS=$(python3 -c 'import json;print(json.load(open("/tmp/mdeasy-last-shown.json")).get("chars",-1))' 2>/dev/null || true)
-    if [[ "$STAMP_PATH" == "$MD" && "$STAMP_CHARS" -ge 10 ]]; then
-      echo "stamp ok path=$STAMP_PATH chars=$STAMP_CHARS"
-      kill "$PID" 2>/dev/null || true
-      wait "$PID" 2>/dev/null || true
-      echo "SELFTEST CI OK"
-      exit 0
-    fi
-  fi
-  sleep 0.25
+# SelfTest exits 0 on "doc-shown" — but the stamp file write races with process
+# teardown, so re-check once after it returns.
+sleep 0.2
+if check_stamp; then
+  echo "SELFTEST CI OK"
+  exit 0
+fi
+
+if [[ "$EXITCODE" -ne 0 ]]; then
+  echo "FAIL: selftest process exited $EXITCODE without a valid stamp" >&2
+  cat /tmp/mdeasy-last-shown.json 2>/dev/null >&2 || true
+  exit 1
+fi
+
+# Process exited 0 but stamp missing/partial — one last retry, then give up.
+for _ in $(seq 1 10); do
+  if check_stamp; then echo "SELFTEST CI OK"; exit 0; fi
+  sleep 0.2
 done
-
-# If we get here, the process either hung (killed above) or never wrote a matching stamp.
-kill "$PID" 2>/dev/null || true
-wait "$PID" 2>/dev/null || true
-echo "FAIL: no matching doc-shown stamp for $MD" >&2
-echo "stamp now:" >&2
-cat /tmp/mdeasy-last-shown.json 2>/dev/null >&2 || echo "(missing)" >&2
-exit 1
+print_failure
