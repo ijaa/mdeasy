@@ -565,7 +565,16 @@ final class PDFExportCoordinator: NSObject, WKNavigationDelegate, WKScriptMessag
         DispatchQueue.main.asyncAfter(deadline: .now() + 30, execute: timeout)
 
         let indexURL = readerRoot.appendingPathComponent("index.html")
+        NSLog("mdeye: PDF renderer loading %@", indexURL.path)
         webView.loadFileURL(indexURL, allowingReadAccessTo: readerRoot)
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        webView.evaluateJavaScript(
+            "({ readyState: document.readyState, hasHandler: !!(window.__mdeye && window.__mdeye.handle) })"
+        ) { result, error in
+            NSLog("mdeye: PDF renderer didFinish state=%@ error=%@", String(describing: result), String(describing: error))
+        }
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
@@ -583,10 +592,13 @@ final class PDFExportCoordinator: NSObject, WKNavigationDelegate, WKScriptMessag
 
         switch type {
         case "ready":
+            NSLog("mdeye: PDF renderer ready")
             sendDocumentIfNeeded()
         case "doc-shown":
+            NSLog("mdeye: PDF renderer document shown")
             requestPrintPreparationIfNeeded()
         case "print-ready":
+            NSLog("mdeye: PDF renderer print-ready")
             printPDF()
         case "error":
             let message = body["message"] as? String ?? "Reader rendering failed"
@@ -661,6 +673,7 @@ final class PDFExportCoordinator: NSObject, WKNavigationDelegate, WKScriptMessag
             finish(.failure(ExportError.invalidPDF))
             return
         }
+        NSLog("mdeye: PDF renderer produced %d pages", pdf.pageCount)
         do {
             let data = try Data(contentsOf: temporaryURL, options: .mappedIfSafe)
             try data.write(to: outputURL, options: .atomic)

@@ -6,7 +6,7 @@
     <!-- CSP must allow the custom scheme mdeye-app: (reader UI) and mdeye-asset: (local images). -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self' mdeye-app:; style-src 'self' mdeye-app: 'unsafe-inline'; img-src 'self' mdeye-app: mdeye-asset: data: blob:; font-src 'self' mdeye-app: data:; connect-src 'none'; frame-src 'none'; base-uri 'none';"
+      content="default-src 'none'; script-src 'self' mdeye-app: file:; style-src 'self' mdeye-app: file: 'unsafe-inline'; img-src 'self' mdeye-app: mdeye-asset: data: blob:; font-src 'self' mdeye-app: file: data:; connect-src 'none'; frame-src 'none'; base-uri 'none';"
     />
     <title>MDEye</title>
     <link rel="stylesheet" href="styles/themes.css" />
