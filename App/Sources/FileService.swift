@@ -66,6 +66,26 @@ enum FileService {
         return candidate
     }
 
+    /// 去除 `#fragment` 与 `?query` 后的纯路径部分，用于把文档内 .md 链接
+    /// （如 `intro.md?x=1`、`intro.md#section`）归一成可被 `resolveAsset` 解析的相对路径。
+    static func stripQueryAndFragment(_ href: String) -> String {
+        var path = href
+        if let q = path.firstIndex(of: "?") { path = String(path[..<q]) }
+        if let f = path.firstIndex(of: "#") { path = String(path[..<f]) }
+        return path
+    }
+
+    /// 统一的 Markdown 后缀集（drag&drop、导出去后缀名、md 链接校验共用，防漂移）。
+    private static let markdownSuffixes: [String] = [
+        ".md", ".markdown", ".mdx", ".mdown", ".mkd", ".mkdn", ".mdwn",
+    ]
+
+    /// 路径是否为受支持的 Markdown 文件名（大小写无关）。
+    static func isMarkdownPath(_ path: String) -> Bool {
+        let lower = path.lowercased()
+        return markdownSuffixes.contains { lower.hasSuffix($0) }
+    }
+
     private static func decode(_ data: Data) -> (String, String) {
         if let s = String(data: data, encoding: .utf8) {
             return (s, "utf-8")

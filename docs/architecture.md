@@ -20,7 +20,7 @@
 |------|----------------|
 | 产品形态 | 阅读器 only；打开 md 即读 |
 | 单文件 | **始终渲染一个文件**；多选打开只取最后一个，不做多窗口/标签 |
-| 导出 | **仅 PDF**（原生 `WKWebView.createPDF`，保留主题）；不做 HTML 导出 |
+| 导出 | **仅 PDF**（WebKit 系统打印管线 + `@media print` CSS，保留主题）；不做 HTML 导出 |
 | 平台 | **仅 macOS**（不做 Win / Android） |
 | 壳 | **Swift + AppKit + WKWebView** |
 | 前端 | **esbuild 单文件 IIFE**（无 Svelte/React，**无 ESM module**） |
@@ -48,7 +48,7 @@
 | 实时预览 | 外部编辑器保存 → 自动重渲染 |
 | Mermaid | 离线渲染（flowchart / sequence 等） |
 | 多主题 | Light / Dark / Sepia / Green |
-| PDF 导出 | 原生 `WKWebView.createPDF`（分页、保留主题） |
+| PDF 导出 | WebKit 系统打印管线（`NSPrintOperation`）+ `@media print` CSS（分页、保留主题、排除大纲/工具条） |
 
 ### 1.2 明确不做
 
@@ -112,7 +112,7 @@
   → JS ready / didFinish / 重试 → 推送 doc
   → markdown-it 渲染；含 mermaid 则 mermaid.run
   → FileWatcher 监听；保存后再次 openFile（保留滚动位置）
-  → 可选：导出 PDF（WKWebView.createPDF）/ 默认应用 / 主题
+  → 可选：导出 PDF（WKWebView 系统打印管线 + `@media print`）/ 默认应用 / 主题
 ```
 
 ---
@@ -137,7 +137,7 @@
 - **单文件语义**：`AppDelegate` 对同时到达的多个文件只渲染最后一个（始终一个文档），不做多窗口/标签
 - 文档类型 `LSHandlerRank = Owner` + 导出 UTI `app.mdeye.markdown`
 - `DefaultAppService`：`LSSetDefaultRoleHandlerForContentType`
-- **PDF 导出**：原生 `WKWebView.createPDF(configuration:)` 渲染实时内容（保留当前主题/CSS/Mermaid），分页写 PDF；`NSSavePanel` 收 `.pdf`。不走 JS 拼 HTML、不走桥接
+- **PDF 导出**：走 WebKit 系统打印管线 `WKWebView.printOperation(with: NSPrintInfo)` → `NSPrintOperation`，弹系统打印面板，用户在「PDF ▾ → 另存为 PDF」落盘。打印引擎自动应用 reader.css 的 `@media print`（隐藏左侧大纲与顶部工具条、`.markdown-body` 撑开整篇高度、`break-*` 控分页、`@page` 定边距），声明式、无运行时注入/恢复；渲染实时内容（保留当前主题/CSS/Mermaid）。不走 JS 拼 HTML、不走桥接
 - Universal Binary 强制门禁
 - 图标 `CFBundleIconFile = AppIcon`
 
@@ -208,9 +208,10 @@
 - `{ type: "ready", version? }`（`version` 由 `build.mjs` 从 `App/Info.plist` 的 `CFBundleShortVersionString` 注入 `__MDEYE_VERSION__`）
 - `{ type: "doc-shown", path, chars, hasMermaid }`（冒烟戳记 `/tmp/mdeye-last-shown.json`）
 - `{ type: "set-preference", key, value }`
+- `{ type: "open-md-link", href }`（正文点击同类 .md 相对链接；Swift 在当前文档 baseDir 树内复用 `FileService.resolveAsset` 解析 → `openFile` 单文件替换，跳树/不存在则 `NSAlert`）
 - open-in-editor / reveal-in-finder / error
 
-> **PDF 导出不走桥接**：Swift 直接 `WKWebView.createPDF`，前端无 `request-export`/`export-html` 消息。
+> **PDF 导出不走桥接**：Swift 走 WebKit 系统打印管线（`WKWebView.printOperation` + `@media print` CSS），前端无 `request-export`/`export-html` 消息。
 
 推送实现优先 `callAsyncJavaScript`，失败则 base64 `evaluateJavaScript` 回退；未 ready 时保留 `latestDoc` 并重试。
 
@@ -322,7 +323,7 @@ mdeye/
 | `verify-open.sh` | 本机 GUI 烟测：冷/热打开；断言 `/tmp/mdeye-last-shown.json` |
 | 真机清单 | 双击默认应用、中文路径、断网、Mermaid、主题、**PDF 导出** |
 
-> 自检模式（`--selftest`）：以 `.accessory` 激活策略启动、不开窗、不抢前台，驱动 `WKWebView` 加载 `mdeye-app://reader/index.html` 并推 `{type:"doc"}`，等 JS 回传 `{type:"doc-shown"}` 后退出。它**只验渲染管线到 doc-shown**；`NSSavePanel`/PDF 导出等用户交互仍需本机或 GUI 烟测覆盖。
+> 自检模式（`--selftest`）：以 `.accessory` 激活策略启动、不开窗、不抢前台，驱动 `WKWebView` 加载 `mdeye-app://reader/index.html` 并推 `{type:"doc"}`，等 JS 回传 `{type:"doc-shown"}` 后退出。它**只验渲染管线到 doc-shown**；系统打印面板/PDF 导出等用户交互仍需本机或 GUI 烟测覆盖。
 
 离线验收：断网冷启动可用；无 CDN；CSP 拒绝远程脚本。
 
@@ -349,7 +350,7 @@ mdeye/
 - [x] Universal dmg 单一文件分发  
 - [x] 图标可见且无黑框（0.2.8）  
 - [x] 无本机 Xcode 可开发 reader + CI 出包  
-- [x] 导出 PDF（原生 createPDF，保留主题）（0.3.0）  
+- [x] 导出 PDF（WebKit 系统打印管线 + `@media print`，排除大纲/工具条、整篇分页）（0.4.0）
 - [x] CI headless 渲染自检（`--selftest`）（0.3.0）  
 
 ---
@@ -370,6 +371,8 @@ mdeye/
 | 0.2.6 | 圆角素材 | 换源图 |
 | 0.2.7–0.2.8 | 黑角 / CI 无 Pillow | 透明处理 + 提交透明资产 |
 | 0.3.0 | HTML→PDF 导出 / 多文件静默覆盖 / 版本漂移 / 沙箱不一致 / CI 无渲染验证 | 原生 createPDF + 单文件语义 + 版本单源注入 + PathSandbox + headless --selftest |
+| 0.4.0 | 原 `createPDF` 空构造只截一屏 + 大纲/工具条被写入 PDF + 机械切片分页差 | 改走 WebKit 系统打印管线（`NSPrintOperation`）+ reader.css `@media print`（排除大纲/工具条、`break-*` 控分页） |
+| 0.5.0 | 文档内 .md 链接点击无反应（裸跳自定义协议必败）；协议 MIT→Apache-2.0 | 正文 click 委托 + 桥接 `open-md-link`，复用 `FileService.resolveAsset` 同树沙箱解析 → `openFile` 单文件替换 |
 
 ## 附录 B. 参考
 

@@ -300,3 +300,60 @@ body {
   color: #f0a0a0;
   border-color: #8a4040;
 }
+
+/* 打印态：导出 PDF 走 WebKit 系统打印管线时，打印引擎自动应用本块。
+   屏幕阅读态完全不触发（无运行时注入、无恢复、无状态）。 */
+@media print {
+  /* 排除大纲与工具条——不写入 PDF */
+  .outline,
+  .toolbar {
+    display: none !important;
+  }
+
+  /* 正文从内部滚动容器改为撑开成完整高度，供打印引擎分页 */
+  html,
+  body,
+  #app,
+  #main,
+  .markdown-body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .markdown-body {
+    flex: none !important;
+    max-height: none !important;
+    padding: 0 !important;
+  }
+
+  /* 打印时放宽阅读窄栏，让正文占满打印宽度 */
+  .markdown-body > * {
+    max-width: none !important;
+  }
+
+  /* 链接不渲染彩色与下划线 */
+  a {
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+
+  /* 标题不与正文分家、块级元素不被腰斩 */
+  h1,
+  h2,
+  h3,
+  h4 {
+    break-after: avoid !important;
+  }
+
+  pre,
+  table,
+  img,
+  blockquote,
+  .mermaid-block {
+    break-inside: avoid !important;
+  }
+
+  @page {
+    margin: 16mm;
+  }
+}

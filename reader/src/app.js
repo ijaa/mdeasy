@@ -240,6 +240,20 @@ function bindUi() {
     updateActiveOutline();
   });
 
+  // 正文链接点击委托：只截"同类 .md 相对链接"，交给原生在当前文档 baseDir 树内解析打开。
+  // 页内锚点(#id)与绝对外链(http(s)/mailto/tel/data)放行系统默认；非 md 相对链接不拦以防误吞示例。
+  $("#content")?.addEventListener("click", (e) => {
+    const a = e.target?.closest?.("a[href]");
+    if (!a) return;
+    const href = a.getAttribute("href") || "";
+    if (href.startsWith("#")) return;
+    if (/^(https?:|mailto:|tel:|data:)/i.test(href)) return;
+    if (/^\.md$|(?:^|\/|\.)(?:md|markdown|mdx|mdown|mkd|mkdn|mdwn)$/i.test(href)) {
+      e.preventDefault();
+      post({ type: "open-md-link", href });
+    }
+  });
+
   document.addEventListener("keydown", (e) => {
     const meta = e.metaKey || e.ctrlKey;
     if (meta && e.key.toLowerCase() === "b") {

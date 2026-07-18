@@ -1,6 +1,5 @@
 import AppKit
 import WebKit
-import UniformTypeIdentifiers
 
 final class DropView: NSView {
     var onDropMarkdown: ((String) -> Void)?
@@ -30,16 +29,7 @@ final class DropView: NSView {
         guard let items = pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] else {
             return []
         }
-        return items.map(\.path).filter { path in
-            let lower = path.lowercased()
-            return lower.hasSuffix(".md")
-                || lower.hasSuffix(".markdown")
-                || lower.hasSuffix(".mdx")
-                || lower.hasSuffix(".mdown")
-                || lower.hasSuffix(".mkd")
-                || lower.hasSuffix(".mkdn")
-                || lower.hasSuffix(".mdwn")
-        }
+        return items.map(\.path).filter { FileService.isMarkdownPath($0) }
     }
 }
 
@@ -166,46 +156,64 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
         openFile(path: path)
     }
 
+    /// 导出 PDF：走 WebKit 系统打印管线（`NSPrintOperation`），而非原生 `createPDF`。
+    /// 打印引擎会自动应用 reader.css 里的 `@media print` 样式——隐藏左侧大纲与顶部工具条、
+    /// 让 `.markdown-body` 撑开成整篇高度、`break-*` 控制分页——因此是声明式、无状态、无运行时恢复。
+    /// 用户在系统打印面板右下「PDF ▾ → 另存为 PDF」落盘。菜单文案仍为 Export PDF…。
     func requestExportPDF() {
         guard currentPath != nil, let webView else { return }
-        let suggested = (currentPath as NSString?)?
-            .components(separatedBy: "/").last?
-            .replacingOccurrences(
-                of: "\\.(md|markdown|mdx|mdown|mkd|mkdn|mdwn)$",
-                with: "",
-                options: .regularExpression
-            ) ?? "export"
+        let printInfo = NSPrintInfo.shared
+        // 与 reader.css 的 `@page { margin: 16mm }` 协调（NSPrintInfo 以点为单位，16mm ≈ 45pt）。
+        let margin: CGFloat = 45.4
+        printInfo.leftMargin = margin
+        printInfo.rightMargin = margin
+        printInfo.topMargin = margin
+        printInfo.bottomMargin = margin
+        printInfo.isHorizontallyCentered = false
+        printInfo.isVerticallyCentered = false
 
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = "\(suggested).pdf"
-        if #available(macOS 11.0, *) { panel.allowedContentTypes = [.pdf] }
-        panel.begin { [weak self] result in
-            guard result == .OK, let url = panel.url else { return }
-            self?.writePDF(from: webView, to: url)
+        guard let printOp = webView.printOperation(with: printInfo) else {
+            presentError("Print is not available for this content.")
+            return
         }
-    }
-
-    /// Render the current WKWebView content to a paginated PDF (macOS 12+).
-    /// Native path — no JS-side HTML assembly needed; reflects the live theme and CSS.
-    /// Swift signature (macOS 12 SDK, *_NS_REFINED_*): createPDF(configuration: Result<Data, Error>-closure,
-    /// parameter label is `configuration:` — there is no `with:` label here.
-    private func writePDF(from webView: WKWebView, to url: URL) {
-        webView.createPDF(configuration: WKPDFConfiguration()) { [weak self] (result: Result<Data, Error>) in
-            DispatchQueue.main.async {
-                switch result {
-                case .success(let data):
-                    if (try? data.write(to: url, options: .atomic)) != nil { return }
-                    self?.presentError("PDF export failed: could not write file")
-                case .failure(let error):
-                    self?.presentError("PDF export failed: \(error.localizedDescription)")
-                }
-            }
+        printOp.showsPrintPanel = true
+        printOp.showsProgressPanel = true
+        if let window = view.window {
+            printOp.runModal(for: window)
+        } else {
+            printOp.runOperation()
         }
     }
 
     func revealInFinder() {
         guard let path = currentPath else { return }
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+    }
+
+    /// 打开文档内点击的同类 .md 链接：在当前文档 baseDir 树内解析（复用图片沙箱通路），
+    /// 命中即替换为单文件入口 `openFile`（单文件语义，不开新窗/标签）；非法/不存在则弹提示框。
+    private func openMarkdownLink(href: String) {
+        guard let current = currentPath else {
+            presentError("No document open — cannot resolve link.")
+            return
+        }
+        // 去掉 `?query` 与 `#fragment`，避免被当成文件名一部分。
+        let relative = FileService.stripQueryAndFragment(href)
+        guard !relative.isEmpty else {
+            presentError("Empty link target.")
+            return
+        }
+        let baseDir = URL(fileURLWithPath: current).deletingLastPathComponent().path
+        guard let url = FileService.resolveAsset(baseDir: baseDir, relative: relative) else {
+            presentError("Cannot open link.\n\nTarget not inside the current folder tree, or not found:\n\(relative)")
+            return
+        }
+        // resolveAsset 只验存在+非目录+不逃逸，再验一次后缀类型，仅 Markdown 才打开。
+        guard FileService.isMarkdownPath(url.path) else {
+            presentError("Only Markdown links are supported:\n\(relative)")
+            return
+        }
+        openFile(path: url.path)
     }
 
     func openInEditor() {
@@ -437,6 +445,10 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
             openInEditor()
         case "reveal-in-finder":
             revealInFinder()
+        case "open-md-link":
+            if let href = body["href"] as? String {
+                openMarkdownLink(href: href)
+            }
         case "set-preference":
             if let key = body["key"] as? String {
                 Preferences.shared.set(key: key, value: body["value"])
