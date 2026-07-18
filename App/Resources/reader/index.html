@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="light">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- CSP must allow the custom scheme mdeasy-app: (reader UI) and mdeasy-asset: (local images). -->
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'none'; script-src 'self' mdeasy-app:; style-src 'self' mdeasy-app: 'unsafe-inline'; img-src 'self' mdeasy-app: mdeasy-asset: data: blob:; font-src 'self' mdeasy-app: data:; connect-src 'none'; frame-src 'none'; base-uri 'none';"
@@ -36,6 +37,8 @@
         </article>
       </main>
     </div>
+    <!-- Classic (IIFE) script. WKWebView under file:// / custom scheme fails to load
+         ESM type=module chunks reliably, so we ship a single classic bundle. -->
     <script src="app.js"></script>
   </body>
 </html>

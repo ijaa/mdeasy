@@ -1,5 +1,5 @@
 import * as esbuild from "esbuild";
-import { cpSync, mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -7,58 +7,29 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const dist = join(__dirname, "dist");
 const watch = process.argv.includes("--watch");
 
+// Single source of truth for the app version is App/Info.plist (CFBundleShortVersionString).
+// Inject it into the bundle so the JS "ready" handshake reports the same version as the app.
+function readAppVersion() {
+  const plist = join(__dirname, "..", "App", "Info.plist");
+  if (!existsSync(plist)) return "0.0.0";
+  const m = readFileSync(plist, "utf8").match(
+    /<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/
+  );
+  return m ? m[1] : "0.0.0";
+}
+const APP_VERSION = readAppVersion();
+
 function copyStatic() {
   mkdirSync(dist, { recursive: true });
-  // index.html is patched after build to use classic script (IIFE), not type=module
+  // index.html is patched (see writeIndex) to use a classic IIFE script.
   cpSync(join(__dirname, "styles"), join(dist, "styles"), { recursive: true });
 }
 
 function writeIndex() {
-  // Classic script: WKWebView file:// and custom schemes load IIFE reliably.
-  // ESM type=module fails under file:// (cross-module CORS) → blank reader forever.
-  const html = `<!DOCTYPE html>
-<html lang="zh-CN" data-theme="light">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self' mdeasy-app:; style-src 'self' mdeasy-app: 'unsafe-inline'; img-src 'self' mdeasy-app: mdeasy-asset: data: blob:; font-src 'self' mdeasy-app: data:; connect-src 'none'; frame-src 'none'; base-uri 'none';"
-    />
-    <title>mdeasy</title>
-    <link rel="stylesheet" href="styles/themes.css" />
-    <link rel="stylesheet" href="styles/reader.css" />
-    <link rel="stylesheet" href="styles/hljs.css" />
-  </head>
-  <body>
-    <div id="app">
-      <aside id="outline" class="outline" aria-label="Outline"></aside>
-      <main id="main">
-        <header id="toolbar" class="toolbar">
-          <button type="button" id="btn-outline" title="Toggle outline (⌘B)">☰</button>
-          <span id="doc-title" class="doc-title">mdeasy</span>
-          <span class="spacer"></span>
-          <select id="theme-select" title="Theme" aria-label="Theme">
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-            <option value="sepia">Sepia</option>
-            <option value="green">Green</option>
-          </select>
-        </header>
-        <article id="content" class="markdown-body empty">
-          <div class="empty-state">
-            <h1>mdeasy</h1>
-            <p>Open a Markdown file to start reading.</p>
-            <p class="hint">⌘O open · drag & drop · double-click .md</p>
-          </div>
-        </article>
-      </main>
-    </div>
-    <script src="app.js"></script>
-  </body>
-</html>
-`;
-  writeFileSync(join(dist, "index.html"), html);
+  // Reuse the committed source index.html directly. It already ships as a classic
+  // (non-module) script with the correct CSP for mdeasy-app:// — no build-time rewrite
+  // needed. Keeping a single copy avoids the source/produced-HTML divergence trap.
+  cpSync(join(__dirname, "index.html"), join(dist, "index.html"));
 }
 
 async function run() {
@@ -80,6 +51,9 @@ async function run() {
     globalName: "mdeasyReader",
     target: ["safari14"],
     logLevel: "info",
+    define: {
+      __MDEASY_VERSION__: JSON.stringify(APP_VERSION),
+    },
   };
 
   const ctx = await esbuild.context(options);
