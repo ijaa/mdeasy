@@ -137,6 +137,7 @@ async function renderMermaidBlocks() {
 }
 
 async function showDoc({ path, text }) {
+  const sameFile = path === state.path;
   state.path = path;
   state.text = text ?? "";
   const title = basename(path);
@@ -155,7 +156,9 @@ async function showDoc({ path, text }) {
   content.setAttribute("data-mdeasy-chars", String((text || "").length));
   const outline = extractOutlineFromHtml(html);
   renderOutline(outline);
-  content.scrollTop = 0;
+  // Preserve scroll position when the same file is refreshed on disk (external save),
+  // reset to top only when opening a different file.
+  if (!sameFile) content.scrollTop = 0;
   requestAnimationFrame(updateActiveOutline);
 
   if (documentHasMermaid(state.text) || content.querySelector(".mermaid")) {
@@ -239,8 +242,7 @@ function handleNativeEvent(msg) {
         setTheme(msg.name);
         break;
       case "toggle-outline":
-        setOutlineOpen(!state.outlineOpen);
-        post({ type: "set-preference", key: "outlineOpen", value: state.outlineOpen });
+        toggleOutline();
         break;
       case "request-export": {
         if (!state.path) return;
@@ -261,11 +263,13 @@ function handleNativeEvent(msg) {
   }
 }
 
+function toggleOutline() {
+  setOutlineOpen(!state.outlineOpen);
+  post({ type: "set-preference", key: "outlineOpen", value: state.outlineOpen });
+}
+
 function bindUi() {
-  $("#btn-outline")?.addEventListener("click", () => {
-    setOutlineOpen(!state.outlineOpen);
-    post({ type: "set-preference", key: "outlineOpen", value: state.outlineOpen });
-  });
+  $("#btn-outline")?.addEventListener("click", toggleOutline);
 
   $("#theme-select")?.addEventListener("change", (e) => {
     const name = e.target.value;
@@ -281,8 +285,7 @@ function bindUi() {
     const meta = e.metaKey || e.ctrlKey;
     if (meta && e.key.toLowerCase() === "b") {
       e.preventDefault();
-      setOutlineOpen(!state.outlineOpen);
-      post({ type: "set-preference", key: "outlineOpen", value: state.outlineOpen });
+      toggleOutline();
     }
   });
 }
@@ -290,7 +293,9 @@ function bindUi() {
 window.__mdeasy = {
   handle: handleNativeEvent,
 };
-window.__mdeasyVersion = "0.2.3";
+// Injected at build time from App/Info.plist via esbuild `define`. Keeps the JS
+// "ready" version in sync with the native app version (single source of truth).
+window.__mdeasyVersion = __MDEASY_VERSION__;
 
 bindUi();
 setTheme("light");

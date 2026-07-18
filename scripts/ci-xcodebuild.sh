@@ -24,26 +24,29 @@ if [[ ! -f "$APP_DIR/AppIcon.icns" ]]; then
     exit 1
   fi
 fi
-# Verify committed/generated icon has transparent corners (prevents black frame regressions)
-python3 - <<'PY' || true
+# Verify committed/generated icon has transparent corners (prevents black frame regressions).
+# Pillow absent on CI → body raises SystemExit(0) early and the script continues.
+# Pillow present + opaque corner → SystemExit(non-zero) aborts the build (was swallowed by `|| true`).
+python3 - <<'PY'
 from pathlib import Path
 try:
     from PIL import Image
     import numpy as np
-    import subprocess, tempfile, os
+    import subprocess
     icns = Path("App/AppIcon.icns")
     if not icns.exists():
         raise SystemExit(0)
     out = Path("/tmp/ci-icon-preview.png")
-    subprocess.run(["sips", "-s", "format", "png", str(icns), "--out", str(out)], check=False, capture_output=True)
-    if out.exists():
-        a = np.array(Image.open(out).convert("RGBA"))
-        corner = int(a[0, 0, 3])
-        print(f"icon corner_alpha={corner}")
-        if corner > 20:
-            raise SystemExit("ERROR: AppIcon.icns corner is not transparent (black frame risk)")
+    subprocess.run(["sips", "-s", "format", "png", str(icns), "--out", str(out)], check=True, capture_output=True)
+    a = np.array(Image.open(out).convert("RGBA"))
+    corner = int(a[0, 0, 3])
+    print(f"icon corner_alpha={corner}")
+    if corner > 20:
+        raise SystemExit("ERROR: AppIcon.icns corner is not transparent (black frame risk)")
+except SystemExit:
+    raise            # SystemExit (0=skip, non-zero=fail) must propagate, never be swallowed
 except Exception as e:
-    # Pillow may be absent on CI; structural path check is enough then.
+    # Pillow/sips unavailable → structural path check already done above; skip alpha gate.
     print("icon alpha check skipped:", e)
 PY
 

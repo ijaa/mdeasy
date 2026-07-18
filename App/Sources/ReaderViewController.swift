@@ -176,7 +176,21 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
 
     func openInEditor() {
         guard let path = currentPath else { return }
-        NSWorkspace.shared.open(URL(fileURLWithPath: path))
+        let url = URL(fileURLWithPath: path)
+        // Avoid recursion: mdeasy is itself a registered Markdown handler, so a plain
+        // NSWorkspace.open(url) may re-launch ourselves. Pick an explicit editor app,
+        // skipping ourselves; fall back to TextEdit, then Finder reveal.
+        let ownBundleId = Bundle.main.bundleIdentifier
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = true
+        if let appURL = NSWorkspace.shared.urlForApplication(toOpen: url),
+           Bundle(url: appURL)?.bundleIdentifier != ownBundleId {
+            NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: config) { _, _ in }
+        } else if let textEdit = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.TextEdit") {
+            NSWorkspace.shared.open([url], withApplicationAt: textEdit, configuration: config) { _, _ in }
+        } else {
+            revealInFinder()
+        }
     }
 
     func setTheme(_ name: String) {
@@ -191,15 +205,6 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
         }
 
         if #available(macOS 11.0, *) {
-            let script = """
-            (function(payload){
-              if (!window.__mdeasy || typeof window.__mdeasy.handle !== 'function') {
-                return 'no-handler';
-              }
-              window.__mdeasy.handle(payload);
-              return 'ok';
-            })
-            """
             // callAsyncJavaScript expects a function body; pass arguments map.
             webView.callAsyncJavaScript(
                 """
