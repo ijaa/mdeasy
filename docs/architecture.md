@@ -304,10 +304,13 @@ mdeasy/
 
 | 类型 | 内容 |
 |------|------|
-| 前端单测 | `reader` 依赖 / 渲染烟测 |
+| 前端单测 | `reader/test/*.test.mjs`：依赖解析 + `md.js` 纯函数（slugify/CJK、rewriteImages、outline、mermaid、task-list、hljs） |
 | CI 结构门禁 | IIFE、通用架构、图标路径 |
-| `verify-open.sh` | 冷/热打开；断言 `/tmp/mdeasy-last-shown.json` |
-| 真机清单 | 双击默认应用、中文路径、断网、Mermaid、主题、导出 |
+| CI headless 自检 | `mdeasy --selftest <path.md>`：无 GUI 会话下离屏 WKWebView 走完整渲染管线，写出 doc-shown stamp；`scripts/ci-selftest.sh` 轮询断言 |
+| `verify-open.sh` | 本机 GUI 烟测：冷/热打开；断言 `/tmp/mdeasy-last-shown.json` |
+| 真机清单 | 双击默认应用、中文路径、断网、Mermaid、主题、**PDF 导出** |
+
+> 自检模式（`--selftest`）：以 `.accessory` 激活策略启动、不开窗、不抢前台，驱动 `WKWebView` 加载 `mdeasy-app://reader/index.html` 并推 `{type:"doc"}`，等 JS 回传 `{type:"doc-shown"}` 后退出。它**只验渲染管线到 doc-shown**；`NSSavePanel`/PDF 导出等用户交互仍需本机或 GUI 烟测覆盖。
 
 离线验收：断网冷启动可用；无 CDN；CSP 拒绝远程脚本。
 
