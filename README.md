@@ -6,7 +6,7 @@ Local-first **Markdown reader for macOS** (not an editor / note vault).
 
 Inspired by [MDView](https://www.mdview.cn/).
 
-**Current version: v0.2.8** · [Releases](https://github.com/ijaa/mdeasy/releases)
+**Current version: v0.3.0** · [Releases](https://github.com/ijaa/mdeasy/releases)
 
 **Languages:** English | [中文](README.zh-CN.md)
 
@@ -85,8 +85,8 @@ Sync build output into the app bundle resources:
 ./scripts/ci-xcodebuild.sh
 # → build/mdeasy.app (forces arm64 + x86_64)
 
-VERSION=0.2.8 ./scripts/package-dmg.sh
-# → build/mdeasy-0.2.8.dmg
+VERSION=0.3.0 ./scripts/package-dmg.sh
+# → build/mdeasy-0.3.0.dmg
 ```
 
 ### Without Xcode
@@ -200,7 +200,7 @@ More detail: [docs/architecture.md](docs/architecture.md)
 
 ## Version & release
 
-- Version: `CFBundleShortVersionString` / `CFBundleVersion` in `App/Info.plist` (currently **0.2.8 / 10**)
+- Version: `CFBundleShortVersionString` / `CFBundleVersion` in `App/Info.plist` (currently **0.3.0 / 11**)
 - CI: push → build + structural gates (IIFE, universal binary, icon path)
 - Release: tag `v*` → dmg + GitHub Release notes (includes Open Anyway steps)
 

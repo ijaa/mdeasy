@@ -1,4 +1,4 @@
-# mdeasy Architecture (implementation · v0.2.8)
+# mdeasy Architecture (implementation · v0.3.0)
 
 > 中文说明：本文件为技术架构文档（原「技术方案」）。
 
@@ -8,7 +8,7 @@
 > **架构**：Swift 薄壳 + WKWebView + 静态 reader（IIFE）  
 > **工程**：本地可不装 Xcode；**GitHub Actions** 编译打包  
 > **分发**：无 Apple Developer 证书；unsigned + **系统设置 → 隐私与安全性 → 仍要打开**  
-> **代码版本**：`CFBundleShortVersionString` **0.2.8** / `CFBundleVersion` **10**
+> **代码版本**：`CFBundleShortVersionString` **0.3.0** / `CFBundleVersion` **11**
 
 本文档描述 **当前仓库真实实现**，并保留产品决策与踩坑结论。历史「拆包 Mermaid / Tauri / 5–10MB 目标」等过程选项已收敛为下列定案。
 
@@ -349,6 +349,8 @@ mdeasy/
 - [x] Universal dmg 单一文件分发  
 - [x] 图标可见且无黑框（0.2.8）  
 - [x] 无本机 Xcode 可开发 reader + CI 出包  
+- [x] 导出 PDF（原生 createPDF，保留主题）（0.3.0）  
+- [x] CI headless 渲染自检（`--selftest`）（0.3.0）  
 
 ---
 
@@ -367,6 +369,7 @@ mdeasy/
 | 0.2.4–0.2.5 | 图标路径错误 | 扁平 AppIcon.icns |
 | 0.2.6 | 圆角素材 | 换源图 |
 | 0.2.7–0.2.8 | 黑角 / CI 无 Pillow | 透明处理 + 提交透明资产 |
+| 0.3.0 | HTML→PDF 导出 / 多文件静默覆盖 / 版本漂移 / 沙箱不一致 / CI 无渲染验证 | 原生 createPDF + 单文件语义 + 版本单源注入 + PathSandbox + headless --selftest |
 
 ## 附录 B. 参考
 
