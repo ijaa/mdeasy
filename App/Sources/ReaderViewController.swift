@@ -192,7 +192,10 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
             return
         }
         // 去掉 `?query` 与 `#fragment`，避免被当成文件名一部分。
-        let relative = FileService.stripQueryAndFragment(href)
+        var relative = FileService.stripQueryAndFragment(href)
+        // markdown-it 会把含非 ASCII 的链接 href 百分号编码（如 `./00-%E5%89%8D%E8%A8%80/01-x.md`），
+        // 而磁盘真实文件名是中文，按编码串查找必然 not found——先 percent-decode 还原。
+        relative = relative.removingPercentEncoding ?? relative
         guard !relative.isEmpty else {
             presentError("Empty link target.")
             return
