@@ -172,16 +172,15 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
         printInfo.isHorizontallyCentered = false
         printInfo.isVerticallyCentered = false
 
-        guard let printOp = webView.printOperation(with: printInfo) else {
-            presentError("Print is not available for this content.")
-            return
-        }
+        let printOp = webView.printOperation(with: printInfo)
         printOp.showsPrintPanel = true
         printOp.showsProgressPanel = true
         if let window = view.window {
-            printOp.runModal(for: window)
+            // 系统打印面板（modal sheet）；用户在「PDF ▾ → 另存为 PDF」落盘。
+            // macOS 12 SDK 下签名为带 delegate/didRun/contextInfo 三参，无回调时传 nil。
+            printOp.runOperationModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
         } else {
-            printOp.runOperation()
+            printOp.run()
         }
     }
 
