@@ -205,14 +205,18 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
             + 'html, body { height:auto !important; min-height:0 !important; overflow:visible !important; }'
             + '#app { display:block !important; height:auto !important; min-height:0 !important; }'
             + '#main { display:block !important; height:auto !important; min-height:0 !important; }'
-            + '.markdown-body { flex:none !important; overflow:visible !important; height:auto !important; max-height:none !important; padding:28px 32px 64px !important; }'
+            // rect 取正文窄栏宽，故 padding 归零、去 max-width 双层留白，让各块占满 PDF 页宽。
+            + '.markdown-body { flex:none !important; overflow:visible !important; height:auto !important; max-height:none !important; padding:0 !important; }'
+            + '.markdown-body > * { max-width:none !important; margin-left:0 !important; margin-right:0 !important; }'
             + '.outline, .toolbar { display:none !important; }';
           document.head.appendChild(style);
-          // 强制同步 reflow，再读全篇高度。
+          // 强制同步 reflow，再读尺寸。
           void document.documentElement.offsetHeight;
+          var c = document.querySelector('.markdown-body');
+          // 宽用正文窄栏宽（去掉屏幕态 42rem 居中后的实际内容宽），高取整篇 scrollHeight。
           var msg = {
             type: 'export-pdf-measured',
-            width: document.documentElement.clientWidth,
+            width: c ? c.clientWidth : document.documentElement.clientWidth,
             height: Math.ceil(document.documentElement.scrollHeight)
           };
           try { window.webkit.messageHandlers.mdeye.postMessage(msg); } catch (e) {}
