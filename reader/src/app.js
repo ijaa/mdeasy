@@ -9,7 +9,7 @@ const state = {
   path: null,
   baseDir: null,
   text: "",
-  theme: "light",
+  theme: "sepia",
   outlineOpen: true,
   mermaidReady: false,
   printPreparation: null,
@@ -24,7 +24,7 @@ function post(msg) {
 }
 
 function setTheme(name) {
-  const theme = ["light", "dark", "sepia", "green"].includes(name) ? name : "light";
+  const theme = ["light", "dark", "sepia", "green"].includes(name) ? name : "sepia";
   state.theme = theme;
   document.documentElement.setAttribute("data-theme", theme);
   const select = $("#theme-select");
@@ -290,6 +290,9 @@ function toggleOutline() {
 
 function bindUi() {
   $("#btn-outline")?.addEventListener("click", toggleOutline);
+  $("#btn-export-pdf")?.addEventListener("click", () => {
+    post({ type: "export-pdf" });
+  });
 
   $("#theme-select")?.addEventListener("change", (e) => {
     const name = e.target.value;
@@ -332,7 +335,7 @@ window.__mdeye = {
 window.__mdeyeVersion = __MDEYE_VERSION__;
 
 bindUi();
-setTheme("light");
+setTheme("sepia");
 showEmpty();
 post({ type: "ready", version: window.__mdeyeVersion });
 setTimeout(() => post({ type: "ready", version: window.__mdeyeVersion }), 50);

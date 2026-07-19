@@ -11,7 +11,7 @@ final class Preferences {
     }
 
     var theme: String {
-        get { defaults.string(forKey: Key.theme) ?? "light" }
+        get { defaults.string(forKey: Key.theme) ?? "sepia" }
         set { defaults.set(newValue, forKey: Key.theme) }
     }
 

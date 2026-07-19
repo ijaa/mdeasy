@@ -462,6 +462,8 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
             openInEditor()
         case "reveal-in-finder":
             revealInFinder()
+        case "export-pdf":
+            requestExportPDF()
         case "open-md-link":
             if let href = body["href"] as? String {
                 openMarkdownLink(href: href)
