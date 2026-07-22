@@ -103,6 +103,22 @@ if [[ ! -f "$OUT_APP/Contents/Resources/AppIcon.icns" ]]; then
 fi
 echo "OK icon: Contents/Resources/AppIcon.icns ($(du -h "$OUT_APP/Contents/Resources/AppIcon.icns" | awk '{print $1}'))"
 
+# 修复本地化资源路径（从 Resources/Resources/*.lproj 移到 Resources/*.lproj）
+if [[ -d "$OUT_APP/Contents/Resources/Resources" ]]; then
+  echo "==> fixing localization paths"
+  for lproj in "$OUT_APP/Contents/Resources/Resources"/*.lproj; do
+    if [[ -d "$lproj" ]]; then
+      LPROJ_NAME=$(basename "$lproj")
+      echo "  moving $LPROJ_NAME to Contents/Resources/"
+      mv "$lproj" "$OUT_APP/Contents/Resources/"
+    fi
+  done
+  # 清理空的嵌套 Resources 目录（如果只剩 reader 也保留）
+  if [[ -z "$(ls -A "$OUT_APP/Contents/Resources/Resources" 2>/dev/null)" ]]; then
+    rmdir "$OUT_APP/Contents/Resources/Resources" 2>/dev/null || true
+  fi
+fi
+
 # Size gate for full pack (Mermaid included). Override with MAX_APP_KB.
 SIZE_KB=$(du -sk "$OUT_APP" | awk '{print $1}')
 MAX_KB=${MAX_APP_KB:-20480} # 20 MB
