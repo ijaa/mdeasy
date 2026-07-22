@@ -55,6 +55,23 @@ def apply_squircle_mask(img: Image.Image, radius_ratio: float = 0.2237) -> Image
     return out
 
 
+def add_padding(img: Image.Image, content_ratio: float = 0.82) -> Image.Image:
+    """Add transparent padding so content occupies content_ratio of canvas.
+
+    macOS icon guidelines recommend ~80-82% content with 9% margin on each side
+    to avoid icons appearing too large in Dock/Finder.
+    """
+    w, h = img.size
+    content_size = int(min(w, h) * content_ratio)
+    # Create larger transparent canvas
+    padded = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    # Center the scaled-down content
+    offset = (w - content_size) // 2
+    resized = img.resize((content_size, content_size), Image.Resampling.LANCZOS)
+    padded.paste(resized, (offset, offset), resized)
+    return padded
+
+
 def ImageChops_multiply_alpha(a: Image.Image, b: Image.Image) -> Image.Image:
     aa = np.array(a, dtype=np.uint16)
     bb = np.array(b, dtype=np.uint16)
@@ -82,6 +99,8 @@ def main() -> int:
     # Normalize to 1024 for quality
     if img.size[0] != 1024:
         img = img.resize((1024, 1024), Image.Resampling.LANCZOS)
+    # Add padding so content occupies 82% (9% margin on each side)
+    img = add_padding(img, content_ratio=0.82)
     dst.parent.mkdir(parents=True, exist_ok=True)
     img.save(dst, format="PNG")
     # Report corner alpha for sanity
