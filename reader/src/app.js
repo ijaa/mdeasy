@@ -13,6 +13,9 @@ const state = {
   outlineOpen: true,
   mermaidReady: false,
   printPreparation: null,
+  fontSizeScale: 1.0,
+  contentMaxWidth: 672,
+  findOpen: false,
 };
 
 function post(msg) {
@@ -37,6 +40,29 @@ function setTheme(name) {
 function setOutlineOpen(open) {
   state.outlineOpen = open;
   $("#outline")?.classList.toggle("hidden", !open);
+}
+
+function clamp(v, lo, hi) {
+  return Math.min(hi, Math.max(lo, v));
+}
+
+// F1：把屏幕字号/栏宽偏好写到 :root CSS 变量。PDF 打印用 @media print 固定值，不沿用。
+function applyPrefsToDom() {
+  const html = document.documentElement;
+  html.style.setProperty("--font-scale", String(state.fontSizeScale));
+  html.style.setProperty("--content-max-width-px", `${state.contentMaxWidth}px`);
+}
+
+// F6：阅读器内轻提示浮层（富文本命中、编辑器说明等），3 秒自动消失。
+function showToast(message, level = "info") {
+  if (!message) return;
+  const old = document.querySelector(".mdeye-toast");
+  if (old) old.remove();
+  const el = document.createElement("div");
+  el.className = `mdeye-toast ${level === "warn" ? "warn" : "info"}`;
+  el.textContent = message;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
 }
 
 function basename(path) {
@@ -178,6 +204,7 @@ async function showDoc({ path, text }) {
     path: path || "",
     chars: (text || "").length,
     hasMermaid: documentHasMermaid(text || ""),
+    hasMath: !!content.querySelector(".katex"),
   });
 }
 
@@ -271,6 +298,20 @@ function handleNativeEvent(msg) {
       case "prepare-print":
         preparePrint();
         break;
+      case "apply-prefs":
+        // F1：屏幕字号/栏宽偏好（number 进 JS 后 typeof 判断即可）。
+        if (typeof msg.fontSizeScale === "number") {
+          state.fontSizeScale = clamp(msg.fontSizeScale, 0.85, 2.0);
+        }
+        if (typeof msg.contentMaxWidth === "number") {
+          state.contentMaxWidth = clamp(msg.contentMaxWidth | 0, 600, 1100);
+        }
+        applyPrefsToDom();
+        break;
+      case "toast":
+        // F6：纯文本轻提示。
+        showToast(msg.message || "", msg.level || "info");
+        break;
       case "ping":
         post({ type: "pong", version: window.__mdeyeVersion || "unknown" });
         break;
@@ -325,6 +366,144 @@ function bindUi() {
       toggleOutline();
     }
   });
+
+  // F5：文内查找（纯 JS TreeWalker 高亮，不碰桥接）。
+  setupFindBar();
+}
+
+// F5：查找条。纯 JS TreeWalker 高亮，不碰桥接。
+function setupFindBar() {
+  const bar = document.createElement("div");
+  bar.id = "find-bar";
+  bar.className = "find-bar hidden";
+  bar.innerHTML = `
+    <input id="find-input" type="text" placeholder="查找…" autocomplete="off" />
+    <button id="find-prev" title="上一个 (⇧⌘G)">▲</button>
+    <button id="find-next" title="下一个 (⌘G)">▼</button>
+    <label class="find-case"><input type="checkbox" id="find-case" /> 大小写</label>
+    <button id="find-close" title="关闭 (esc)">✕</button>
+  `;
+  document.body.appendChild(bar);
+
+  const input = bar.querySelector("#find-input");
+  const caseCb = bar.querySelector("#find-case");
+  let matches = [];
+  let idx = -1;
+
+  function clearMarks() {
+    document.querySelectorAll("mark.mdeye-find").forEach((m) => {
+      const parent = m.parentNode;
+      parent.replaceChild(document.createTextNode(m.textContent), m);
+      parent.normalize?.();
+    });
+    matches = [];
+    idx = -1;
+  }
+
+  function search(query) {
+    clearMarks();
+    if (!query) return;
+    const root = document.getElementById("content");
+    if (!root) return;
+    const flags = caseCb.checked ? "g" : "gi";
+    const re = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), flags);
+    // 仅在文本节点遍历，避免拆坏 KaTeX/mermaid/代码块既有 DOM。
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(n) {
+        if (!n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        const p = n.parentElement;
+        if (p && p.closest("script, style, mark.mdeye-find")) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    for (const tn of nodes) {
+      const text = tn.nodeValue;
+      let last = 0;
+      let m;
+      const frag = document.createDocumentFragment();
+      while ((m = re.exec(text))) {
+        if (m.index > last) {
+          frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+        }
+        const mk = document.createElement("mark");
+        mk.className = "mdeye-find";
+        mk.textContent = m[0];
+        frag.appendChild(mk);
+        matches.push(mk);
+        last = m.index + m[0].length;
+        if (m.index === re.lastIndex) re.lastIndex++; // 防零宽死循环
+      }
+      if (last) {
+        frag.appendChild(document.createTextNode(text.slice(last)));
+        tn.parentNode.replaceChild(frag, tn);
+      }
+    }
+    idx = matches.length ? 0 : -1;
+    highlightCurrent();
+  }
+
+  function highlightCurrent() {
+    matches.forEach((m, i) => m.classList.toggle("current", i === idx));
+    if (matches[idx]) {
+      matches[idx].scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }
+
+  function next() {
+    if (!matches.length) return;
+    idx = (idx + 1) % matches.length;
+    highlightCurrent();
+  }
+
+  function prev() {
+    if (!matches.length) return;
+    idx = (idx - 1 + matches.length) % matches.length;
+    highlightCurrent();
+  }
+
+  function openFindBar() {
+    state.findOpen = true;
+    bar.classList.remove("hidden");
+    input.focus();
+    input.select();
+  }
+
+  function closeFindBar() {
+    state.findOpen = false;
+    bar.classList.add("hidden");
+    clearMarks();
+    input.value = "";
+  }
+
+  bar.querySelector("#find-next").addEventListener("click", next);
+  bar.querySelector("#find-prev").addEventListener("click", prev);
+  bar.querySelector("#find-close").addEventListener("click", closeFindBar);
+  input.addEventListener("input", () => search(input.value));
+  caseCb.addEventListener("change", () => search(input.value));
+
+  document.addEventListener("keydown", (e) => {
+    // 查找条打开时输入框优先处理 Esc；否则全局 ⌘F 唤起。
+    if (state.findOpen && e.key === "Escape") {
+      e.preventDefault();
+      closeFindBar();
+      return;
+    }
+    const meta = e.metaKey || e.ctrlKey;
+    if (!meta) return;
+    const k = e.key.toLowerCase();
+    if (k === "f") {
+      e.preventDefault();
+      openFindBar();
+    } else if (state.findOpen && k === "g") {
+      e.preventDefault();
+      if (e.shiftKey) prev();
+      else next();
+    }
+  });
 }
 
 window.__mdeye = {
@@ -336,6 +515,7 @@ window.__mdeyeVersion = __MDEYE_VERSION__;
 
 bindUi();
 setTheme("sepia");
+applyPrefsToDom();
 showEmpty();
 post({ type: "ready", version: window.__mdeyeVersion });
 setTimeout(() => post({ type: "ready", version: window.__mdeyeVersion }), 50);

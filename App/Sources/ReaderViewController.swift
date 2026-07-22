@@ -149,6 +149,18 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
             latestDoc = doc
             NSLog("mdeye: document ready (%d chars) readerReady=%@", payload.text.count, readerReady ? "yes" : "no")
             pushLatestDocument(reason: "openFile")
+
+            // F6：读时检测富文本标记（RTF 头/控制序列/非预期控制符），命中后弹轻提示，
+            // 建议在 TextEdit 用「格式→制作纯文本」清理，避免富文本保存破坏 Markdown 源。
+            if FileService.looksLikeRichText(payload.text) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                    self?.sendBridgeEvent([
+                        "type": "toast",
+                        "message": "检测到富文本标记，建议在 TextEdit 中用「格式→制作纯文本」清理后再阅读。",
+                        "level": "info",
+                    ])
+                }
+            }
         } catch {
             presentError(error.localizedDescription)
         }
@@ -236,25 +248,45 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
     func openInEditor() {
         guard let path = currentPath else { return }
         let url = URL(fileURLWithPath: path)
-        // Avoid recursion: mdeye is itself a registered Markdown handler, so a plain
-        // NSWorkspace.open(url) may re-launch ourselves. Pick an explicit editor app,
-        // skipping ourselves; fall back to TextEdit, then Finder reveal.
-        let ownBundleId = Bundle.main.bundleIdentifier
+        // F6: 默认只用自带的 TextEdit（不自定义编辑器白名单/行号）。失败再回退 Finder reveal。
+        guard let textEdit = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.TextEdit") else {
+            revealInFinder()
+            return
+        }
         let config = NSWorkspace.OpenConfiguration()
         config.activates = true
-        if let appURL = NSWorkspace.shared.urlForApplication(toOpen: url),
-           Bundle(url: appURL)?.bundleIdentifier != ownBundleId {
-            NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: config) { _, _ in }
-        } else if let textEdit = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.TextEdit") {
-            NSWorkspace.shared.open([url], withApplicationAt: textEdit, configuration: config) { _, _ in }
-        } else {
-            revealInFinder()
-        }
+        NSWorkspace.shared.open([url], withApplicationAt: textEdit, configuration: config) { _, _ in }
     }
 
     func setTheme(_ name: String) {
         Preferences.shared.theme = name
         sendBridgeEvent(["type": "theme", "name": name])
+    }
+
+    // F1: 字号/栏宽缩放（屏幕阅读用，打印不沿用）。
+    func adjustFontSizeScale(by delta: Double) {
+        let s = min(max(Preferences.shared.fontSizeScale + delta, 0.85), 2.0)
+        setFontSizeScale(s)
+    }
+
+    func setFontSizeScale(_ scale: Double) {
+        Preferences.shared.fontSizeScale = scale
+        sendApplyPrefs()
+    }
+
+    func adjustContentMaxWidth(by delta: Int) {
+        let w = min(max(Preferences.shared.contentMaxWidth + delta, 600), 1100)
+        Preferences.shared.contentMaxWidth = w
+        sendApplyPrefs()
+    }
+
+    private func sendApplyPrefs() {
+        guard readerReady else { return }
+        sendBridgeEvent([
+            "type": "apply-prefs",
+            "fontSizeScale": Preferences.shared.fontSizeScale,
+            "contentMaxWidth": Preferences.shared.contentMaxWidth,
+        ])
     }
 
     func sendBridgeEvent(_ object: [String: Any], completion: ((Error?) -> Void)? = nil) {
@@ -449,6 +481,8 @@ final class ReaderViewController: NSViewController, WKScriptMessageHandler, WKNa
                 "type": "theme",
                 "name": Preferences.shared.theme
             ])
+            // F1: 一次性把屏幕字号/栏宽偏好下发，与 theme 同模式（启动时 JS 先用默认，再被覆盖）。
+            sendApplyPrefs()
             pushLatestDocument(reason: "js-ready")
         case "doc-shown":
             // Proof that the web reader actually rendered content (not just native open).

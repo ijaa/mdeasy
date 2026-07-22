@@ -1,0 +1,11 @@
+# 中文 GB18030 编码测试
+
+这是一个用于编码探测的中文 Markdown 源文件（UTF-8 存储）。
+
+CI 会在 `scripts/ci-selftest.sh` 里用 `iconv -f UTF-8 -t GB18030` 把本文件转成
+GB18030 字节序列后再交给 `--encoding-selftest`，期望探测结果为 `gb18030`。
+
+## 章节
+
+- 第一节：常见 Windows 旧笔记默认 GBK/GB18030 编码
+- 第二节：以前打开会乱码或报错，现在自动识别并正常预览

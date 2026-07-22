@@ -112,3 +112,11 @@ test("extractOutlineFromHtml: empty html returns []", () => {
   assert.deepEqual(extractOutlineFromHtml(""), []);
   assert.deepEqual(extractOutlineFromHtml("<p>no headings</p>"), []);
 });
+
+test("renderMarkdown: inline and block math render via KaTeX", () => {
+  const html = renderMarkdown("行内 $a^2+b^2=c^2$ 公式\n\n$$\\int_0^1 x\\,dx = 0.5$$\n");
+  assert.match(html, /<span class="katex"/i, "inline math should produce a .katex span");
+  assert.match(html, /katex-display/i, "block math should produce a .katex-display");
+  // 美元符分隔符应被 texmath 消费，不再以原始 $...$ 残留。
+  assert.doesNotMatch(html, /\$a\^2/);
+});

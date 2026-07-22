@@ -26,8 +26,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Some Launch Services paths only show up slightly after launch.
         DispatchQueue.main.async { [weak self] in
-            self?.flushPendingPaths()
+            guard let self else { return }
+            self.flushPendingPaths()
+            // F2: 仍无外部传入 path → 尝试恢复上次打开的文件（单文件语义，
+            // 复用 openFile 入口，不开新窗/标签）。失效路径会被清空，不再重试。
+            if self.pendingPaths.isEmpty, self.windowController != nil {
+                self.restoreLastOpenedPath()
+            }
         }
+    }
+
+    private func restoreLastOpenedPath() {
+        guard let last = Preferences.shared.lastOpenedPath,
+              !last.isEmpty,
+              FileManager.default.fileExists(atPath: last) else {
+            // 失效路径清空，避免下次启动再尝试并触发错误对话框。
+            if Preferences.shared.lastOpenedPath != nil {
+                Preferences.shared.lastOpenedPath = nil
+                NSLog("mdeye: lastOpenedPath cleared (missing)")
+            }
+            return
+        }
+        NSLog("mdeye: restoring lastOpenedPath → %@", last)
+        windowController?.openFile(path: last)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
