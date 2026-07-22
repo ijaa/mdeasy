@@ -132,3 +132,22 @@ rg -n -i "(api[_-]?key|access[_-]?token|secret|password|private[_-]?key|BEGIN .*
 - **不要只靠记忆/猜测 AppKit/WebKit Swift API 签名。** 当前打印管线使用 `NSPrintOperation.runModal(for:delegate:didRun:contextInfo:)` 异步入口；`webView.printOperation(with:)` 返回非可选对象。相关回调可能运行在工作线程，PDFKit、文件写入和窗口清理必须显式回到主线程。
 - **本机无 Xcode 时更要先用 CI 过编译。** 仓库已沉淀两条路：(1) 本机装 Xcode 跑 `./scripts/ci-xcodebuild.sh`；(2) push 到 `main`、提交 pull request，或手动触发 `ci.yml`，让 `mac-app` job 先跑通 Universal 编译与 PDF 自检，再打 tag 触发 `release.yml`。**严禁跳过编译直接打 tag 发布 Swift 改动**。
 - **覆盖边界**：CI 已覆盖生产 PDF 渲染、分页和有效多页输出；`NSSavePanel` 的用户交互仍属于本机 GUI 烟测范围。改导出路径时，先让 CI 编译和 `--pdf-selftest` 通过，再做有 Xcode/CI 产物上的 GUI 验证。
+
+### 发版前必须更新文档
+**每次发布新版本前，必须检查并更新所有相关文档，确保文档与实际功能保持一致。**
+
+需要检查的文档清单：
+- `README.md` — 功能列表、快捷键说明、版本号、截图
+- `CHANGELOG.md` — 新版本的变更记录
+- `CLAUDE.md` — 架构描述、命令示例、约束规则
+- `.claude/agents/*.md` — agent 指令（如有涉及）
+- `App/Resources/*/Localizable.strings` — 本地化字符串（如有新增菜单项/提示）
+- `reader/index.html` — UI 说明注释
+- 其他面向用户的文档
+
+发版流程：
+1. 在 `App/Info.plist` 更新版本号
+2. **检查并更新上述文档清单中的所有文档**
+3. 提交文档更新（单独 commit 或与功能 commit 合并）
+4. 通过 CI 验证编译和自检
+5. 打 `v*` tag 触发 `release.yml`

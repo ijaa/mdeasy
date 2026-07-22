@@ -116,6 +116,11 @@ body {
   cursor: pointer;
 }
 
+.toolbar button .icon {
+  margin-right: 4px;
+  opacity: 0.8;
+}
+
 .toolbar button:hover,
 .toolbar select:hover {
   border-color: var(--fg-muted);
