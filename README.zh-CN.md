@@ -6,7 +6,7 @@
 
 灵感来自 [MDView](https://www.mdview.cn/)。
 
-**当前版本：v0.7.0** · [Releases](https://github.com/ijaa/mdeye/releases)
+**当前版本：v0.7.1** · [Releases](https://github.com/ijaa/mdeye/releases)
 
 **语言：** [English](README.md) | 中文
 
@@ -100,8 +100,8 @@ npm test
 ./scripts/ci-xcodebuild.sh
 # → build/mdeye.app（强制 arm64 + x86_64）
 
-VERSION=0.7.0 ./scripts/package-dmg.sh
-# → build/mdeye-0.7.0.dmg
+VERSION=0.7.1 ./scripts/package-dmg.sh
+# → build/mdeye-0.7.1.dmg
 ```
 
 ### 无 Xcode
@@ -215,7 +215,7 @@ Static reader (IIFE app.js，禁止 type=module)
 
 ## 版本与发布
 
-- 版本号：`App/Info.plist` 的 `CFBundleShortVersionString` / `CFBundleVersion`（当前 **0.7.0 / 15**）
+- 版本号：`App/Info.plist` 的 `CFBundleShortVersionString` / `CFBundleVersion`（当前 **0.7.1 / 16**）
 - CI：push / pull request / 手动 `workflow_dispatch` → App 构建、结构门禁、渲染自检与生产多页 PDF 导出自检
 - Release：tag `v*` → dmg + GitHub Release 说明（含「仍要打开」）
 
