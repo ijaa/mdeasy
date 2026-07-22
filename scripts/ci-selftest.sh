@@ -19,10 +19,40 @@ rm -f "$MD_BASE"
 MD="$MD_BASE.md"
 PDF="$MD_BASE.pdf"
 trap 'rm -f "$MD" "$PDF" /tmp/mdeye-last-shown.json' EXIT
+
+# ---------------------------------------------------------------------------
+# Encoding + rich-text marker self-checks (no GUI; pure FileService paths).
+# ---------------------------------------------------------------------------
+ENC_DIR="$(mktemp -d /tmp/mdeye-enc.XXXXXX)"
+# GB18030 fixture: committed as UTF-8 source, converted here so the binary
+# stays git-friendly. iconv is available on the CI macos-14 runner.
+if iconv -f UTF-8 -t GB18030 "$ROOT/fixtures/gb18030.utf8.src" >"$ENC_DIR/gb18030.md" 2>/dev/null; then
+  :
+else
+  echo "WARN: iconv GB18030 conversion failed; skipping gb18030 case" >&2
+  : >"$ENC_DIR/gb18030.md"
+fi
+cp "$ROOT/fixtures/ascii.md" "$ENC_DIR/ascii.md"
+cp "$ROOT/fixtures/rich-text-marker.md" "$ENC_DIR/rich-text-marker.md"
+
+echo "== encoding selftest =="
+"$BIN" --encoding-selftest "$ENC_DIR/ascii.md" utf-8
+if [[ -s "$ENC_DIR/gb18030.md" ]]; then
+  "$BIN" --encoding-selftest "$ENC_DIR/gb18030.md" gb18030
+fi
+
+echo "== rich-text marker selftest =="
+"$BIN" --rich-text-selftest "$ENC_DIR/rich-text-marker.md" 1
+"$BIN" --rich-text-selftest "$ENC_DIR/ascii.md" 0
+
 cat >"$MD" <<'EOF'
 # Selftest
 
 A paragraph with **bold** and `inline code`.
+
+行内公式 $E=mc^2$，块级：
+
+$$\sum_{i=1}^n i = \frac{n(n+1)}{2}$$
 
 | a | b |
 | - | - |

@@ -6,6 +6,44 @@ import PDFKit
 
 let argv = CommandLine.arguments
 
+// Headless encoding detection check for CI:
+//   mdeye --encoding-selftest <path-to.md> <expectedEncoding>
+if argv.count >= 4, argv[1] == "--encoding-selftest" {
+    do {
+        let payload = try FileService.readMarkdown(path: argv[2])
+        if payload.encoding == argv[3] {
+            print("ENCODING SELFTEST OK \(payload.encoding)")
+            exit(0)
+        } else {
+            print("ENCODING SELFTEST FAIL: expected \(argv[3]) got \(payload.encoding)")
+            exit(1)
+        }
+    } catch {
+        print("ENCODING SELFTEST FAIL: \(error.localizedDescription)")
+        exit(1)
+    }
+}
+
+// Headless rich-text marker check for CI:
+//   mdeye --rich-text-selftest <path-to.md> <0|1>
+if argv.count >= 4, argv[1] == "--rich-text-selftest" {
+    do {
+        let payload = try FileService.readMarkdown(path: argv[2])
+        let hit = FileService.looksLikeRichText(payload.text)
+        let expect = (argv[3] == "1")
+        if hit == expect {
+            print("RICHTEXT SELFTEST OK hit=\(hit)")
+            exit(0)
+        } else {
+            print("RICHTEXT SELFTEST FAIL: expected \(expect) got \(hit)")
+            exit(1)
+        }
+    } catch {
+        print("RICHTEXT SELFTEST FAIL: \(error.localizedDescription)")
+        exit(1)
+    }
+}
+
 // Headless PDF export check for CI:
 //   mdeye --pdf-selftest <path-to.md> <output.pdf>
 // Uses the production PDFExportCoordinator and requires a valid multi-page result.

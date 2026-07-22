@@ -2,6 +2,11 @@
   box-sizing: border-box;
 }
 
+:root {
+  --font-scale: 1;
+  --content-max-width-px: 672px;
+}
+
 html,
 body {
   margin: 0;
@@ -10,7 +15,8 @@ body {
   color: var(--fg);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
     "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  font-size: 16px;
+  /* F1：屏幕字号随 --font-scale 缩放；rem 的 h1-h3 自动跟动。打印用 @media print 固定。 */
+  font-size: calc(16px * var(--font-scale, 1));
   line-height: 1.65;
 }
 
@@ -135,7 +141,7 @@ body {
 }
 
 .markdown-body > * {
-  max-width: 42rem;
+  max-width: var(--content-max-width-px, 42rem);
   margin-left: auto;
   margin-right: auto;
 }
@@ -264,7 +270,7 @@ body {
   border: none;
   border-top: 1px solid var(--border);
   margin: 2em auto;
-  max-width: 42rem;
+  max-width: var(--content-max-width-px, 42rem);
 }
 
 .markdown-body input[type="checkbox"] {
@@ -299,6 +305,100 @@ body {
 [data-theme="dark"] .markdown-body .mermaid-error {
   color: #f0a0a0;
   border-color: #8a4040;
+}
+
+/* F4：KaTeX 块级公式横向溢出可滚，避免宽公式撑破栏宽。 */
+.markdown-body .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 0;
+}
+
+/* F5：文内查找条（纯 JS，fixed top-right 胶囊）。 */
+.find-bar {
+  position: fixed;
+  top: 8px;
+  right: 14px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 8px;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+.find-bar.hidden {
+  display: none;
+}
+.find-bar input {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 13px;
+  width: 200px;
+  outline: none;
+}
+.find-bar input:focus {
+  border-color: var(--link);
+}
+.find-bar button {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.find-bar button:hover {
+  border-color: var(--fg-muted);
+}
+.find-case {
+  font-size: 12px;
+  color: var(--fg-muted);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  user-select: none;
+}
+mark.mdeye-find {
+  background: #ffe89a;
+  color: inherit;
+  border-radius: 2px;
+}
+mark.mdeye-find.current {
+  background: #ff9a3c;
+}
+[data-theme="dark"] mark.mdeye-find {
+  background: rgba(255, 200, 80, 0.4);
+}
+[data-theme="dark"] mark.mdeye-find.current {
+  background: rgba(255, 140, 40, 0.7);
+}
+
+/* F6：阅读器轻提示浮层（fixed bottom-center 胶囊，3s 自动消失）。 */
+.mdeye-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  background: var(--bg-elevated);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  box-shadow: 0 4px 16px var(--shadow);
+  z-index: 20;
+  max-width: 80vw;
+}
+.mdeye-toast.warn {
+  border-color: #d39b00;
 }
 
 /* PDF export uses a dedicated WKWebView and WebKit's print pagination.
@@ -338,6 +438,8 @@ body {
   body {
     background: #ffffff !important;
     color: var(--fg) !important;
+    /* F1：打印固定字号，屏幕缩放不污染 PDF。 */
+    font-size: 16px !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -352,6 +454,29 @@ body {
     max-width: none !important;
     margin-left: 0;
     margin-right: 0;
+  }
+
+  /* F1：栏宽变量在打印时同样收起铺满纸面。 */
+  .markdown-body hr {
+    max-width: none !important;
+  }
+
+  /* F4：块级公式横向溢出在分页时安全滚动，不再保留屏显的外边距。 */
+  .markdown-body .katex-display {
+    overflow: visible !important;
+    break-inside: avoid;
+  }
+
+  /* F5/F6：阅读器浮层不进 PDF。 */
+  .find-bar,
+  .mdeye-toast {
+    display: none !important;
+  }
+
+  /* F5：查找高亮在打印中退化为普通文本样式。 */
+  mark.mdeye-find {
+    background: transparent !important;
+    color: inherit !important;
   }
 
   a {

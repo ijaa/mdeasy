@@ -75,6 +75,18 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         viewMenu.addItem(withTitle: "Theme: Dark", action: #selector(setThemeDark(_:)), keyEquivalent: "2")
         viewMenu.addItem(withTitle: "Theme: Sepia", action: #selector(setThemeSepia(_:)), keyEquivalent: "3")
         viewMenu.addItem(withTitle: "Theme: Green", action: #selector(setThemeGreen(_:)), keyEquivalent: "4")
+        viewMenu.addItem(NSMenuItem.separator())
+        // F1：字号缩放（⌘+/⌘-/⌘0）与栏宽调整（⌥+/⌥-）。
+        viewMenu.addItem(withTitle: "Zoom In (Text)", action: #selector(zoomTextIn(_:)), keyEquivalent: "+")
+        viewMenu.addItem(withTitle: "Zoom Out (Text)", action: #selector(zoomTextOut(_:)), keyEquivalent: "-")
+        viewMenu.addItem(withTitle: "Reset Text Zoom", action: #selector(zoomTextReset(_:)), keyEquivalent: "0")
+        viewMenu.addItem(NSMenuItem.separator())
+        let widen = NSMenuItem(title: "Widen Column", action: #selector(widenColumn(_:)), keyEquivalent: "+")
+        widen.keyEquivalentModifierMask = [.option]
+        viewMenu.addItem(widen)
+        let narrow = NSMenuItem(title: "Narrow Column", action: #selector(narrowColumn(_:)), keyEquivalent: "-")
+        narrow.keyEquivalentModifierMask = [.option]
+        viewMenu.addItem(narrow)
 
         let windowMenuItem = NSMenuItem()
         mainMenu.addItem(windowMenuItem)
@@ -131,6 +143,13 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     @objc private func setThemeDark(_ sender: Any?) { contentController.setTheme("dark") }
     @objc private func setThemeSepia(_ sender: Any?) { contentController.setTheme("sepia") }
     @objc private func setThemeGreen(_ sender: Any?) { contentController.setTheme("green") }
+
+    // F1：屏幕缩放（字号 / 栏宽）。打印不沿用——CSS @media print 固定字号与 max-width。
+    @objc private func zoomTextIn(_ sender: Any?) { contentController.adjustFontSizeScale(by: 0.1) }
+    @objc private func zoomTextOut(_ sender: Any?) { contentController.adjustFontSizeScale(by: -0.1) }
+    @objc private func zoomTextReset(_ sender: Any?) { contentController.setFontSizeScale(1.0) }
+    @objc private func widenColumn(_ sender: Any?) { contentController.adjustContentMaxWidth(by: 32) }
+    @objc private func narrowColumn(_ sender: Any?) { contentController.adjustContentMaxWidth(by: -32) }
 
     @objc private func setAsDefaultApp(_ sender: Any?) {
         let result = DefaultAppService.setAsDefaultMarkdownViewer()

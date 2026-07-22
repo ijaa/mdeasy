@@ -3,6 +3,10 @@ import anchor from "markdown-it-anchor";
 import taskLists from "markdown-it-task-lists";
 import hljs from "highlight.js/lib/core";
 
+// F4：KaTeX 数学公式（离线，esbuild 静态 import → 打进同一 IIFE，禁止动态 import）。
+import katex from "katex";
+import texmath from "markdown-it-texmath";
+
 import javascript from "highlight.js/lib/languages/javascript";
 import typescript from "highlight.js/lib/languages/typescript";
 import python from "highlight.js/lib/languages/python";
@@ -85,6 +89,14 @@ md.use(anchor, {
 });
 
 md.use(taskLists, { enabled: true, label: true, labelAfter: true });
+
+// F4：行内 $...$ 与块级 $$...$$。texmath 默认对 fenced code / code_block 跳过，
+// 不会把代码块里的 $ 误当公式。
+md.use(texmath, {
+  engine: katex,
+  delimiter: "$",
+  katexOptions: { throwOnError: false, strict: false, output: "html" },
+});
 
 /**
  * Rewrite relative image src to mdeye-asset:// scheme.

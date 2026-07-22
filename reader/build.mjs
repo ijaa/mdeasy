@@ -1,6 +1,6 @@
 import * as esbuild from "esbuild";
-import { cpSync, mkdirSync, rmSync, existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { cpSync, mkdirSync, rmSync, existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { dirname, join, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -23,6 +23,37 @@ function copyStatic() {
   mkdirSync(dist, { recursive: true });
   // index.html is patched (see writeIndex) to use a classic IIFE script.
   cpSync(join(__dirname, "styles"), join(dist, "styles"), { recursive: true });
+
+  // F4：仅拷贝 KaTeX 的 woff2 字体到 dist/fonts/（删 woff/ttf，省 ~800KB）。
+  // katex.min.css 内的 url(fonts/KaTeX_*.woff2) 相对路径在 mdeye-app://reader/ 与
+  // 打印 WebView 的 file://.../reader/ 两种 base 下都指向同目录，自洽。
+  const katexFonts = join(__dirname, "node_modules", "katex", "dist", "fonts");
+  if (existsSync(katexFonts)) {
+    const outFonts = join(dist, "fonts");
+    mkdirSync(outFonts, { recursive: true });
+    for (const f of readdirSync(katexFonts)) {
+      if (extname(f) === ".woff2") cpSync(join(katexFonts, f), join(outFonts, f));
+    }
+    // 拷一份剥离 woff/ttf src 的 katex.min.css（避免浏览器对不存在字体 404）。
+    const cssOut = writeStrippedKatexCss(join(katexFonts, "..", "katex.min.css"), join(dist, "styles", "katex.min.css"));
+    if (!cssOut) console.warn("katex.min.css not found; styles/katex.min.css not written");
+  } else {
+    console.warn("katex dist/fonts not found; formulas will render without fonts");
+  }
+}
+
+// F4：删 katex.min.css 里的 woff/ttf url 声明，仅保留 woff2。
+function writeStrippedKatexCss(srcPath, outPath) {
+  if (!existsSync(srcPath)) return false;
+  let css = readFileSync(srcPath, "utf8");
+  // 形如 src:url(x.woff2) format("woff2"),url(x.woff) format("woff"),url(x.ttf)
+  // 删除 woff/ttf 的 url 段，保留 woff2。
+  css = css.replace(/,\s*url\([^)]*\.woff\)/g, "");
+  css = css.replace(/,\s*url\([^)]*\.ttf\)/g, "");
+  // 清理可能的尾随逗号 (src:url(x.woff2), → src:url(x.woff2))
+  css = css.replace(/,\s*\)/g, ")");
+  writeFileSync(outPath, css, "utf8");
+  return true;
 }
 
 function writeIndex() {
