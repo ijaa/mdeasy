@@ -137,7 +137,7 @@ rg -n -i "(api[_-]?key|access[_-]?token|secret|password|private[_-]?key|BEGIN .*
 **每次发布新版本前，必须检查并更新所有相关文档，确保文档与实际功能保持一致。**
 
 需要检查的文档清单：
-- `README.md` — 功能列表、快捷键说明、版本号、截图
+- `README.md` — 功能列表、快捷键说明、版本号、截图（双语：上中文、下 English，改一处要同步两段）
 - `CHANGELOG.md` — 新版本的变更记录
 - `CLAUDE.md` — 架构描述、命令示例、约束规则
 - `.claude/agents/*.md` — agent 指令（如有涉及）

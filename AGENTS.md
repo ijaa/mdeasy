@@ -70,14 +70,14 @@ rg -n -i "(api[_-]?key|access[_-]?token|secret|password|private[_-]?key|BEGIN .*
 
 ## 文档与发布
 
-面向贡献者和用户的说明同步维护 `README.md`、`README.zh-CN.md`、`CLAUDE.md` 与 `docs/architecture.md`；实现、脚本或 CI 行为变化时，应同时更新对应文档。版本唯一来源是 `App/Info.plist`，发布前确认文档版本与其一致。
+面向贡献者和用户的说明同步维护 `README.md`（双语：上中文、下 English）、`CLAUDE.md` 与 `docs/architecture.md`；实现、脚本或 CI 行为变化时，应同时更新 `README.md` 中文与 English 两段。版本唯一来源是 `App/Info.plist`，发布前确认文档版本与其一致。
 
 ### 发版前必须更新文档
 
 **每次发布新版本前，必须检查并更新所有相关文档，确保文档与实际功能保持一致。**
 
 需要检查的文档清单：
-- `README.md` — 功能列表、快捷键说明、版本号、截图
+- `README.md` — 功能列表、快捷键说明、版本号、截图（双语：上中文、下 English，改一处要同步两段）
 - `CHANGELOG.md` — 新版本的变更记录
 - `CLAUDE.md` — 架构描述、命令示例、约束规则
 - `AGENTS.md` — 本文档的开发规范
